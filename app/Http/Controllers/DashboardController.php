@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -498,4 +499,29 @@ class DashboardController extends Controller
             'clicks' => $clicks
         ]);
     }
+
+
+    public function getStats(AnalyticsService $analyticsService)
+    {
+        return response()->json($analyticsService->userStats(Auth::id()));
+    }
+
+    public function getRecentActivity(AnalyticsService $analyticsService)
+    {
+        return response()->json($analyticsService->userStats(Auth::id())['recent_activity']);
+    }
+
+    public function getLimits()
+    {
+        $smtp = \App\Models\SMTPAccount::ownedBy(Auth::id())
+            ->orderByDesc('is_default')
+            ->first();
+
+        return response()->json([
+            'daily_limit' => $smtp?->daily_limit ?? 0,
+            'per_minute_limit' => $smtp?->per_minute_limit ?? 0,
+            'warmup_enabled' => (bool) ($smtp?->warmup_enabled ?? false),
+        ]);
+    }
+
 }

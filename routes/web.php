@@ -18,6 +18,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\Admin\RevenueController;
+use App\Http\Controllers\Admin\AnalyticsController as AdminAnalyticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,6 +90,8 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Tracking (public routes - no auth required)
+Route::get('/track/open/{id}.png', [TrackingController::class, 'trackOpenById'])->name('track.open.id');
+Route::get('/track/click/{id}', [TrackingController::class, 'trackClickById'])->name('track.click.id');
 Route::get('/track/open', [TrackingController::class, 'trackOpen'])->name('track.open');
 Route::get('/track/click', [TrackingController::class, 'trackClick'])->name('track.click');
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
@@ -193,6 +196,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/limits', [DashboardController::class, 'getLimits'])->name('limits');
         Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
         Route::get('/recent-activity', [DashboardController::class, 'getRecentActivity'])->name('recent-activity');
+        Route::get('/admin/analytics/users', [AdminAnalyticsController::class, 'users'])->name('admin.analytics.users');
+        Route::get('/admin/analytics/users/{userId}', [AdminAnalyticsController::class, 'userDetail'])->name('admin.analytics.user-detail');
     });
 });
 

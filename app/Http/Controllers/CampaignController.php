@@ -202,6 +202,7 @@ class CampaignController extends Controller
 
         // Check if list has active subscribers
         $activeSubscribers = Subscriber::where('list_id', $campaign->list_id)
+            ->where('user_id', Auth::id())
             ->where('status', 'active')
             ->get();
         

@@ -12,45 +12,18 @@ class EmailLog extends Model
     protected $fillable = [
         'user_id',
         'campaign_id',
-        'subscriber_id',
-        'email',
-        'subject',
-        'content',
+        'smtp_id',
+        'recipient_email',
+        'to_email',
         'status',
-        'sent_at',
-        'delivered_at',
-        'opened_at',
-        'clicked_at',
-        'bounced_at',
-        'bounce_reason',
-        'spam_reported',
-        'unsubscribed',
-        'meta'
+        'opened',
+        'clicked',
+        'message_id',
+        'error_message',
     ];
 
     protected $casts = [
-        'sent_at' => 'datetime',
-        'delivered_at' => 'datetime',
-        'opened_at' => 'datetime',
-        'clicked_at' => 'datetime',
-        'bounced_at' => 'datetime',
-        'spam_reported' => 'boolean',
-        'unsubscribed' => 'boolean',
-        'meta' => 'array'
+        'opened' => 'boolean',
+        'clicked' => 'boolean',
     ];
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    public function campaign()
-    {
-        return $this->belongsTo(Campaign::class);
-    }
-
-    public function subscriber()
-    {
-        return $this->belongsTo(Subscriber::class);
-    }
 }

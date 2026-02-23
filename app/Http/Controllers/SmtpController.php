@@ -2,108 +2,103 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SMTPAccount;
+use App\Services\SmtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class SmtpController extends Controller
 {
+    public function __construct(private readonly SmtpService $smtpService)
+    {
+    }
+
     public function index()
     {
         $userId = Auth::id();
-
-        if (!DB::select("SHOW TABLES LIKE 'smtp_settings'")) {
-            $this->createSmtpSettingsTable();
-        }
-
-        $smtpSettings = DB::table('smtp_settings')
-            ->where('user_id', $userId)
-            ->orderByDesc('is_active')
-            ->get();
+        $smtpSettings = SMTPAccount::ownedBy($userId)->latest()->get();
 
         return view('smtp.index', [
             'smtpSettings' => $smtpSettings,
             'totalSmtp' => $smtpSettings->count(),
-            'activeSmtp' => $smtpSettings->where('is_active', 1)->count(),
-            'usageStats' => $this->getSmtpUsageStats($userId),
+            'activeSmtp' => $smtpSettings->where('is_active', true)->count(),
+            'usageStats' => [
+                'sent_today' => 0,
+                'sent_this_month' => 0,
+                'total_sent' => 0,
+                'success_rate' => 0,
+            ],
         ]);
-    }
-
-    private function createSmtpSettingsTable()
-    {
-        DB::statement("
-            CREATE TABLE IF NOT EXISTS smtp_settings (
-                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT UNSIGNED NOT NULL,
-                name VARCHAR(255),
-                host VARCHAR(255),
-                port INT,
-                encryption ENUM('tls','ssl','none'),
-                username VARCHAR(255),
-                password TEXT,
-                from_address VARCHAR(255),
-                from_name VARCHAR(255),
-                daily_limit INT DEFAULT 500,
-                sent_today INT DEFAULT 0,
-                sent_this_month INT DEFAULT 0,
-                total_sent INT DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                last_used_at TIMESTAMP NULL,
-                created_at TIMESTAMP NULL,
-                updated_at TIMESTAMP NULL
-            )
-        ");
-    }
-
-    private function getSmtpUsageStats($userId)
-    {
-        return [
-            'sent_today' => DB::table('smtp_settings')->where('user_id', $userId)->sum('sent_today'),
-            'sent_this_month' => DB::table('smtp_settings')->where('user_id', $userId)->sum('sent_this_month'),
-            'total_sent' => DB::table('smtp_settings')->where('user_id', $userId)->sum('total_sent'),
-            'success_rate' => 99.2
-        ];
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => 'required',
-            'host' => 'required',
-            'port' => 'required|integer',
-            'encryption' => 'required',
-            'username' => 'required',
-            'password' => 'required',
-            'from_address' => 'required|email',
-            'from_name' => 'nullable',
-            'daily_limit' => 'required|integer'
+            'host' => 'required|string|max:255',
+            'port' => 'required|integer|min:1|max:65535',
+            'username' => 'required|string|max:255',
+            'password' => 'required|string|max:1000',
+            'encryption' => 'required|in:tls,ssl,none',
+            'from_email' => 'nullable|email|max:255',
+            'from_address' => 'nullable|email|max:255',
+            'from_name' => 'nullable|string|max:255',
+            'daily_limit' => 'nullable|integer|min:1|max:100000',
+            'per_minute_limit' => 'nullable|integer|min:1|max:10000',
+            'warmup_enabled' => 'nullable|boolean',
         ]);
 
-        DB::table('smtp_settings')->insert(array_merge($data, [
-            'user_id' => Auth::id(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]));
+        $data['from_email'] = $data['from_email'] ?? $data['from_address'] ?? null;
+        $this->smtpService->saveForUser(Auth::id(), $data);
 
         return back()->with('success', 'SMTP added successfully.');
     }
 
-    public function test($id)
+    public function update(Request $request, string $id)
     {
-        DB::table('smtp_settings')
-            ->where('id', $id)
-            ->where('user_id', Auth::id())
-            ->update(['last_used_at' => now()]);
+        $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
 
-        return response()->json(['success' => true]);
+        $data = $request->validate([
+            'host' => 'required|string|max:255',
+            'port' => 'required|integer|min:1|max:65535',
+            'username' => 'required|string|max:255',
+            'password' => 'nullable|string|max:1000',
+            'encryption' => 'required|in:tls,ssl,none',
+            'from_email' => 'nullable|email|max:255',
+            'from_address' => 'nullable|email|max:255',
+            'from_name' => 'nullable|string|max:255',
+            'daily_limit' => 'nullable|integer|min:1|max:100000',
+            'per_minute_limit' => 'nullable|integer|min:1|max:10000',
+            'warmup_enabled' => 'nullable|boolean',
+        ]);
+
+        $data['from_email'] = $data['from_email'] ?? $data['from_address'] ?? $smtp->from_email;
+        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);
+
+        return back()->with('success', 'SMTP updated successfully.');
     }
 
-    public function destroy($id)
+    public function test(Request $request, string $smtp)
     {
-        DB::table('smtp_settings')
-            ->where('id', $id)
-            ->where('user_id', Auth::id())
-            ->delete();
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $data = $request->validate(['email' => 'nullable|email']);
+        $target = $data['email'] ?? Auth::user()->email;
+
+        $result = $this->smtpService->testConnection($smtpModel, $target);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    public function setDefault(string $smtp)
+    {
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $this->smtpService->setDefault($smtpModel);
+
+        return back()->with('success', 'Default SMTP updated.');
+    }
+
+    public function destroy(string $id)
+    {
+        SMTPAccount::ownedBy(Auth::id())->findOrFail($id)->delete();
 
         return back()->with('success', 'SMTP deleted.');
     }
