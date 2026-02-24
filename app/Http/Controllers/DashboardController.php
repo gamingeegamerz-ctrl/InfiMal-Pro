@@ -126,8 +126,8 @@ class DashboardController extends Controller
                 $emailStats = DB::table('email_logs')
                     ->where('user_id', $user->id)
                     ->selectRaw('COUNT(*) as total')
-                    ->selectRaw('SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opens')
-                    ->selectRaw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
+                    ->selectRaw('SUM(CASE WHEN opened = 1 THEN 1 ELSE 0 END) as opens')
+                    ->selectRaw('SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END) as clicks')
                     ->selectRaw('SUM(CASE WHEN bounced_at IS NOT NULL THEN 1 ELSE 0 END) as bounces')
                     ->selectRaw('SUM(CASE WHEN spam_reported = 1 THEN 1 ELSE 0 END) as spam')
                     ->first();
@@ -145,8 +145,8 @@ class DashboardController extends Controller
                     ->where('user_id', $user->id)
                     ->whereDate('created_at', $today)
                     ->selectRaw('COUNT(*) as emails')
-                    ->selectRaw('SUM(CASE WHEN opened_at IS NOT NULL THEN 1 ELSE 0 END) as opens')
-                    ->selectRaw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
+                    ->selectRaw('SUM(CASE WHEN opened = 1 THEN 1 ELSE 0 END) as opens')
+                    ->selectRaw('SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END) as clicks')
                     ->first();
                 
                 $data['emailsToday'] = $todayStats->emails ?? 0;
@@ -167,12 +167,12 @@ class DashboardController extends Controller
                 
                 $currentPeriodOpens = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->where('opened_at', '>=', $currentPeriodStart)
+                    ->where('opened', true)->where('created_at', '>=', $currentPeriodStart)
                     ->count();
                 
                 $currentPeriodClicks = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->where('clicked_at', '>=', $currentPeriodStart)
+                    ->where('clicked', true)->where('created_at', '>=', $currentPeriodStart)
                     ->count();
                 
                 $previousPeriodEmails = DB::table('email_logs')
@@ -182,12 +182,12 @@ class DashboardController extends Controller
                 
                 $previousPeriodOpens = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('opened_at', [$previousPeriodStart, $currentPeriodStart])
+                    ->where('opened', true)->whereBetween('created_at', [$previousPeriodStart, $currentPeriodStart])
                     ->count();
                 
                 $previousPeriodClicks = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('clicked_at', [$previousPeriodStart, $currentPeriodStart])
+                    ->where('clicked', true)->whereBetween('created_at', [$previousPeriodStart, $currentPeriodStart])
                     ->count();
                 
                 if ($previousPeriodEmails > 0) {
@@ -364,12 +364,12 @@ class DashboardController extends Controller
                 
                 $stats['opensToday'] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereDate('opened_at', $today)
+                    ->where('opened', true)->whereDate('created_at', $today)
                     ->count();
                 
                 $stats['clicksToday'] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereDate('clicked_at', $today)
+                    ->where('clicked', true)->whereDate('created_at', $today)
                     ->count();
             }
         }
@@ -458,12 +458,12 @@ class DashboardController extends Controller
                 
                 $opens[] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('opened_at', [$dayStart, $dayEnd])
+                    ->where('opened', true)->whereBetween('created_at', [$dayStart, $dayEnd])
                     ->count();
                 
                 $clicks[] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('clicked_at', [$dayStart, $dayEnd])
+                    ->where('clicked', true)->whereBetween('created_at', [$dayStart, $dayEnd])
                     ->count();
             }
         } else {
@@ -482,12 +482,12 @@ class DashboardController extends Controller
                 
                 $opens[] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('opened_at', [$dayStart, $dayEnd])
+                    ->where('opened', true)->whereBetween('created_at', [$dayStart, $dayEnd])
                     ->count();
                 
                 $clicks[] = DB::table('email_logs')
                     ->where('user_id', $user->id)
-                    ->whereBetween('clicked_at', [$dayStart, $dayEnd])
+                    ->where('clicked', true)->whereBetween('created_at', [$dayStart, $dayEnd])
                     ->count();
             }
         }

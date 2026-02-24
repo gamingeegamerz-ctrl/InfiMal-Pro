@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use App\Services\SmtpService;
 use Illuminate\Http\Request;
@@ -92,6 +93,37 @@ class SmtpController extends Controller
         $this->smtpService->setDefault($smtpModel);
 
         return back()->with('success', 'Default SMTP updated.');
+    }
+
+
+    public function health()
+    {
+        $userId = Auth::id();
+
+        $health = SMTPAccount::ownedBy($userId)
+            ->get()
+            ->map(function (SMTPAccount $smtp) {
+                $failed = EmailLog::where('smtp_id', $smtp->id)
+                    ->whereIn('status', ['failed', 'bounced'])
+                    ->whereDate('created_at', now()->toDateString())
+                    ->count();
+
+                $availability = $smtp->is_active && $smtp->sent_today < max(1, (int) $smtp->daily_limit);
+
+                return [
+                    'id' => $smtp->id,
+                    'name' => $smtp->name,
+                    'host' => $smtp->host,
+                    'is_active' => (bool) $smtp->is_active,
+                    'availability' => $availability,
+                    'sent_today' => (int) $smtp->sent_today,
+                    'daily_limit' => (int) $smtp->daily_limit,
+                    'last_used_at' => $smtp->last_used_at,
+                    'failures_today' => $failed,
+                ];
+            });
+
+        return response()->json($health);
     }
 
     public function destroy(string $id)
