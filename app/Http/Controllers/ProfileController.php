@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Models\Campaign;
+use App\Models\MailingList;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -11,24 +12,30 @@ use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
-    /**
-     * Display the user's profile page.
-     */
     public function index()
     {
         $user = Auth::user();
-        
-        // Get user stats (you can modify these based on your actual data)
+
+        $totalCampaigns = $user->campaigns()->count();
+
+        $totalSubscribers = MailingList::where('user_id', $user->id)
+            ->withCount('subscribers')
+            ->get()
+            ->sum('subscribers_count');
+
+        $totalSent = Campaign::where('user_id', $user->id)
+            ->selectRaw('COALESCE(SUM(sent_count), SUM(total_sent), 0) as sent_total')
+            ->value('sent_total') ?? 0;
+
         $stats = [
-            'total_campaigns' => $user->campaigns()->count(),
-            'total_subscribers' => $user->lists()->withCount('subscribers')->get()->sum('subscribers_count'),
-            'total_sent' => $user->campaigns()->sum('sent_count'),
-            'account_age' => $user->created_at->diffForHumans(),
+            'total_campaigns' => $totalCampaigns,
+            'total_subscribers' => $totalSubscribers,
+            'total_sent' => (int) $totalSent,
+            'account_age' => optional($user->created_at)->diffForHumans() ?? 'Just now',
         ];
-        
-        // Determine payment status (you can modify this based on your billing system)
-        $paymentStatus = $user->subscribed() ? 'paid' : 'free';
-        
+
+        $paymentStatus = $user->hasPaid() ? 'paid' : 'free';
+
         return view('profile.index', [
             'user' => $user,
             'stats' => $stats,
@@ -36,13 +43,10 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update the user's profile information.
-     */
     public function update(Request $request)
     {
         $user = Auth::user();
-        
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'email' => [
@@ -80,13 +84,10 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update the user's password.
-     */
     public function updatePassword(Request $request)
     {
         $user = Auth::user();
-        
+
         $validator = Validator::make($request->all(), [
             'current_password' => ['required', 'current_password'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
@@ -110,21 +111,17 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Set password for social login users.
-     */
     public function setPassword(Request $request)
     {
         $user = Auth::user();
-        
-        // Check if user doesn't have a password (social login)
+
         if ($user->password) {
             return response()->json([
                 'success' => false,
                 'message' => 'Password already set'
             ], 400);
         }
-        
+
         $validator = Validator::make($request->all(), [
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
@@ -147,13 +144,10 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Update user preferences.
-     */
     public function updatePreferences(Request $request)
     {
         $user = Auth::user();
-        
+
         $validator = Validator::make($request->all(), [
             'email_notifications' => ['nullable', 'boolean'],
             'campaign_notifications' => ['nullable', 'boolean'],
@@ -169,14 +163,13 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        // Save preferences (you can modify this based on your preferences storage)
         $preferences = $user->preferences ?? [];
-        
+
         $preferences['email_notifications'] = $request->boolean('email_notifications', true);
         $preferences['campaign_notifications'] = $request->boolean('campaign_notifications', true);
         $preferences['weekly_reports'] = $request->boolean('weekly_reports', true);
         $preferences['theme'] = $request->get('theme', 'system');
-        
+
         $user->update([
             'preferences' => $preferences,
         ]);
@@ -188,26 +181,20 @@ class ProfileController extends Controller
         ]);
     }
 
-    /**
-     * Get updated stats.
-     */
     public function getStats()
     {
         $user = Auth::user();
-        
+
         $stats = [
             'total_campaigns' => $user->campaigns()->count(),
-            'total_subscribers' => $user->lists()->withCount('subscribers')->get()->sum('subscribers_count'),
-            'total_sent' => $user->campaigns()->sum('sent_count'),
-            'account_age' => $user->created_at->diffForHumans(),
+            'total_subscribers' => MailingList::where('user_id', $user->id)->withCount('subscribers')->get()->sum('subscribers_count'),
+            'total_sent' => (int) (Campaign::where('user_id', $user->id)->selectRaw('COALESCE(SUM(sent_count), SUM(total_sent), 0) as sent_total')->value('sent_total') ?? 0),
+            'account_age' => optional($user->created_at)->diffForHumans() ?? 'Just now',
         ];
-        
+
         return response()->json($stats);
     }
 
-    /**
-     * Delete the user's account.
-     */
     public function destroy(Request $request)
     {
         $request->validateWithBag('userDeletion', [
@@ -217,7 +204,6 @@ class ProfileController extends Controller
         $user = $request->user();
 
         Auth::logout();
-
         $user->delete();
 
         $request->session()->invalidate();

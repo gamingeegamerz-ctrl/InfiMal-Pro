@@ -102,7 +102,8 @@ class CampaignController extends Controller
             ->firstOrFail();
         
         // Get subscriber count for this list
-        $subscriberCount = Subscriber::where('list_id', $campaign->list_id)
+        $subscriberCount = Subscriber::where('user_id', Auth::id())
+            ->where('list_id', $campaign->list_id)
             ->where('status', 'active')
             ->count();
         
@@ -202,6 +203,7 @@ class CampaignController extends Controller
 
         // Check if list has active subscribers
         $activeSubscribers = Subscriber::where('list_id', $campaign->list_id)
+            ->where('user_id', Auth::id())
             ->where('status', 'active')
             ->get();
         
@@ -260,6 +262,30 @@ class CampaignController extends Controller
         // Status will be updated by scheduled command or when all jobs finish
 
         return back()->with('success', "Campaign queued for sending to {$activeCount} subscribers! {$jobsCreated} jobs created.");
+    }
+
+
+    public function analytics($id)
+    {
+        $campaign = Campaign::where('user_id', Auth::id())
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $base = DB::table('email_logs')
+            ->where('user_id', Auth::id())
+            ->where('campaign_id', $campaign->id);
+
+        $stats = [
+            'total_sent' => (clone $base)->count(),
+            'opens' => (clone $base)->where('opened', 1)->count(),
+            'clicks' => (clone $base)->where('clicked', 1)->count(),
+            'bounces' => (clone $base)->where('status', 'bounced')->count(),
+        ];
+
+        return response()->json([
+            'campaign' => $campaign,
+            'stats' => $stats,
+        ]);
     }
 
     public function destroy($id)
