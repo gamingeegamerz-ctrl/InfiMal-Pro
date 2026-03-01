@@ -13,25 +13,15 @@ class UpdateEmailStats extends Command
     public function handle()
     {
         $this->info('Updating email statistics...');
-        
-        // Update open rates
-        DB::table('email_logs')
-            ->where('opens_count', '>', 0)
-            ->update([
-                'open_rate' => DB::raw('ROUND((opens_count / 1) * 100, 2)'),
-                'updated_at' => now()
-            ]);
-        
-        // Update click rates
-        DB::table('email_logs')
-            ->where('clicks_count', '>', 0)
-            ->update([
-                'click_rate' => DB::raw('ROUND((clicks_count / GREATEST(opens_count, 1)) * 100, 2)'),
-                'updated_at' => now()
-            ]);
-        
+
+        DB::table('email_logs')->update([
+            'open_rate' => DB::raw('CASE WHEN opened = 1 THEN 100 ELSE 0 END'),
+            'click_rate' => DB::raw('CASE WHEN clicked = 1 THEN 100 ELSE 0 END'),
+            'updated_at' => now(),
+        ]);
+
         $this->info('Email statistics updated successfully!');
-        
-        return 0;
+
+        return self::SUCCESS;
     }
 }

@@ -31,23 +31,6 @@ class SmtpController extends Controller
         ]);
     }
 
-
-    public function create()
-    {
-        return redirect()->route('smtp.index');
-    }
-
-    public function show(string $id)
-    {
-        $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
-        return response()->json($smtp);
-    }
-
-    public function edit(string $id)
-    {
-        return $this->show($id);
-    }
-
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -69,6 +52,17 @@ class SmtpController extends Controller
         return back()->with('success', 'SMTP added successfully.');
     }
 
+    public function show(string $id)
+    {
+        $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
+        return response()->json($smtp);
+    }
+
+    public function edit(string $id)
+    {
+        return $this->show($id);
+    }
+
     public function update(Request $request, string $id)
     {
         $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
@@ -78,7 +72,7 @@ class SmtpController extends Controller
             'host' => 'required|string|max:255',
             'port' => 'required|integer|min:1|max:65535',
             'username' => 'required|string|max:255',
-            'password' => 'nullable|string|max:1000',
+            'password' => 'nullable|string|max:1000',  // ✅ Nullable for updates
             'encryption' => 'required|in:tls,ssl,none',
             'from_address' => 'nullable|email|max:255',
             'from_name' => 'nullable|string|max:255',
@@ -87,7 +81,7 @@ class SmtpController extends Controller
             'warmup_enabled' => 'nullable|boolean',
         ]);
 
-        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);
+        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);  // ✅ Pass $smtp for update
 
         return back()->with('success', 'SMTP updated successfully.');
     }
@@ -110,8 +104,6 @@ class SmtpController extends Controller
 
         return back()->with('success', 'Default SMTP updated.');
     }
-
-
 
     public function verify(string $smtp)
     {
@@ -137,11 +129,10 @@ class SmtpController extends Controller
         }
 
         return response()->json([
-            'smtp_host' => $smtp->smtp_host,
-            'smtp_port' => $smtp->smtp_port,
-            'smtp_username' => $smtp->smtp_username,
-            'smtp_password' => $smtp->smtp_password,
-            'from_email' => $smtp->from_email,
+            'host' => $smtp->host,
+            'port' => $smtp->port,
+            'username' => $smtp->username,
+            'from_address' => $smtp->from_address,
             'from_name' => $smtp->from_name,
             'encryption' => $smtp->encryption,
         ]);

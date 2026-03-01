@@ -193,6 +193,7 @@ Route::middleware(['auth'])->group(function () {
     // API ROUTES
     Route::prefix('api')->name('api.')->group(function () {
         Route::get('/smtp/credentials', [SmtpController::class, 'getCredentials'])->name('smtp.credentials');
+        Route::get('/smtp/health', [SmtpController::class, 'health'])->name('smtp.health');
         Route::get('/limits', [DashboardController::class, 'getLimits'])->name('limits');
         Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
         Route::get('/recent-activity', [DashboardController::class, 'getRecentActivity'])->name('recent-activity');
@@ -440,16 +441,16 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $successful = $deliveredCount + $sentCount;
             $attempted = $totalEmails;
             $successRate = $attempted > 0 ? round(($successful / $attempted) * 100, 1) : 0;
-            $opensToday = DB::table('email_logs')->whereDate('created_at', today())->sum('opens_count') ?? 0;
-            $clicksToday = DB::table('email_logs')->whereDate('created_at', today())->sum('clicks_count') ?? 0;
+            $opensToday = DB::table('email_logs')->whereDate('created_at', today())->sum('opened') ?? 0;
+            $clicksToday = DB::table('email_logs')->whereDate('created_at', today())->sum('clicked') ?? 0;
             $failuresToday = DB::table('email_logs')->where('status', 'failed')->whereDate('created_at', today())->count();
-            $avgOpenRate = DB::table('email_logs')->where('opens_count', '>', 0)->avg('open_rate') ?? 0;
+            $avgOpenRate = DB::table('email_logs')->where('opened', '=', 1)->avg('open_rate') ?? 0;
             $avgOpenRate = round($avgOpenRate, 1);
-            $avgClickRate = DB::table('email_logs')->where('clicks_count', '>', 0)->avg('click_rate') ?? 0;
+            $avgClickRate = DB::table('email_logs')->where('clicked', '=', 1)->avg('click_rate') ?? 0;
             $avgClickRate = round($avgClickRate, 1);
             $avgResponseTime = DB::table('email_logs')->whereNotNull('response_time')->avg('response_time') ?? 0;
             $avgResponseTime = round($avgResponseTime, 2);
-            $emails = DB::table('email_logs')->leftJoin('users', 'email_logs.user_id', '=', 'users.id')->leftJoin('campaigns', 'email_logs.campaign_id', '=', 'campaigns.id')->select('email_logs.id', 'email_logs.to_email', 'email_logs.subject', 'email_logs.status', 'email_logs.opens_count', 'email_logs.clicks_count', 'email_logs.open_rate', 'email_logs.click_rate', 'email_logs.response_time', 'email_logs.error_message', 'email_logs.sent_at', 'email_logs.created_at', 'users.email as user_email', 'users.name as user_name', 'campaigns.name as campaign_name')->orderByDesc('email_logs.created_at')->paginate(20);
+            $emails = DB::table('email_logs')->leftJoin('users', 'email_logs.user_id', '=', 'users.id')->leftJoin('campaigns', 'email_logs.campaign_id', '=', 'campaigns.id')->select('email_logs.id', 'email_logs.to_email', 'email_logs.subject', 'email_logs.status', 'email_logs.opened', 'email_logs.clicked', 'email_logs.open_rate', 'email_logs.click_rate', 'email_logs.response_time', 'email_logs.error_message', 'email_logs.sent_at', 'email_logs.created_at', 'users.email as user_email', 'users.name as user_name', 'campaigns.name as campaign_name')->orderByDesc('email_logs.created_at')->paginate(20);
         } catch (\Exception $e) {
             $totalEmails = $emailsToday = 0;
             $deliveredCount = $failedCount = $pendingCount = $bouncedCount = $sentCount = 0;
@@ -475,12 +476,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $successful = $deliveredCount + $sentCount;
             $attempted = $totalEmails;
             $successRate = $attempted > 0 ? round(($successful / $attempted) * 100, 1) : 0;
-            $opensToday = DB::table('email_logs')->whereDate('created_at', today())->sum('opens_count') ?? 0;
-            $clicksToday = DB::table('email_logs')->whereDate('created_at', today())->sum('clicks_count') ?? 0;
+            $opensToday = DB::table('email_logs')->whereDate('created_at', today())->sum('opened') ?? 0;
+            $clicksToday = DB::table('email_logs')->whereDate('created_at', today())->sum('clicked') ?? 0;
             $failuresToday = DB::table('email_logs')->where('status', 'failed')->whereDate('created_at', today())->count();
-            $avgOpenRate = DB::table('email_logs')->where('opens_count', '>', 0)->avg('open_rate') ?? 0;
+            $avgOpenRate = DB::table('email_logs')->where('opened', '=', 1)->avg('open_rate') ?? 0;
             $avgOpenRate = round($avgOpenRate, 1);
-            $avgClickRate = DB::table('email_logs')->where('clicks_count', '>', 0)->avg('click_rate') ?? 0;
+            $avgClickRate = DB::table('email_logs')->where('clicked', '=', 1)->avg('click_rate') ?? 0;
             $avgClickRate = round($avgClickRate, 1);
             $avgResponseTime = DB::table('email_logs')->whereNotNull('response_time')->avg('response_time') ?? 0;
             $avgResponseTime = round($avgResponseTime, 2);
