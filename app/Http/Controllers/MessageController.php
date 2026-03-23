@@ -2,76 +2,58 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Message;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
 
 class MessageController extends Controller
 {
-    public function index()
+    public function index(): View
     {
-        $userId = Auth::id();
-        
-        try {
-            // Check if messages table exists
-            $tableExists = DB::select("SHOW TABLES LIKE 'messages'");
-            
-            if (empty($tableExists)) {
-                // Create messages table if not exists
-                $this->createMessagesTable();
-            }
-            
-            // Get real messages
-            $messages = DB::table('messages')
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->paginate(15);
-            
-            // Get counts
-            $totalMessages = DB::table('messages')
-                ->where('user_id', $userId)
-                ->count();
-            
-            $unreadMessages = DB::table('messages')
-                ->where('user_id', $userId)
-                ->where('is_read', false)
-                ->count();
-            
-            return view('messages.index', [
-                'messages' => $messages,
-                'totalMessages' => $totalMessages,
-                'unreadMessages' => $unreadMessages
-            ]);
-            
-        } catch (\Exception $e) {
-            return view('messages.index', [
-                'messages' => collect([]),
-                'totalMessages' => 0,
-                'unreadMessages' => 0
-            ]);
-        }
+        $messages = Message::where('user_id', Auth::id())->latest()->paginate(15);
+
+        return view('messages.index', [
+            'messages' => $messages,
+            'totalMessages' => Message::where('user_id', Auth::id())->count(),
+            'unreadMessages' => Message::where('user_id', Auth::id())->where('is_read', false)->count(),
+        ]);
     }
-    
-    private function createMessagesTable()
-    {
-        DB::statement("
-            CREATE TABLE IF NOT EXISTS messages (
-                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                user_id BIGINT UNSIGNED NOT NULL,
-                subject VARCHAR(255) NOT NULL,
-                content TEXT NOT NULL,
-                type ENUM('system', 'notification', 'alert') DEFAULT 'notification',
-                is_read BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP NULL,
-                updated_at TIMESTAMP NULL,
-                INDEX messages_user_id_index (user_id),
-                INDEX messages_is_read_index (is_read)
-            )
-        ");
-    }
-    
-    public function create()
+
+    public function create(): View
     {
         return view('messages.create');
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        Message::create($request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'subject' => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string'],
+            'type' => ['nullable', 'in:email,sms,notification'],
+        ]) + [
+            'user_id' => Auth::id(),
+            'type' => $request->input('type', 'email'),
+            'is_template' => true,
+        ]);
+
+        return redirect()->route('messages.index')->with('success', 'Message template saved.');
+    }
+
+    public function show(Message $message): View
+    {
+        $message = Message::where('user_id', Auth::id())->findOrFail($message->id);
+        $message->update(['is_read' => true]);
+
+        return view('messages.create', compact('message'));
+    }
+
+    public function destroy(Message $message): RedirectResponse
+    {
+        Message::where('user_id', Auth::id())->findOrFail($message->id)->delete();
+
+        return redirect()->route('messages.index')->with('success', 'Message deleted.');
     }
 }

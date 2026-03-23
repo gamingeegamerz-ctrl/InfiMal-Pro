@@ -2,97 +2,70 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Laravel\Socialite\Facades\Socialite;
-use App\Models\User;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\View\View;
 
 class AuthController extends Controller
 {
-    // Show Login Form
-    public function showLoginForm()
+    public function showLoginForm(): View
     {
         return view('auth.login');
     }
 
-    // Show Register Form
-    public function showRegisterForm()
+    public function showRegisterForm(): View
     {
         return view('auth.register');
     }
 
-    // Handle Email Login - FIXED SYNTAX
-    public function login(Request $request)
+    public function login(Request $request): RedirectResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required'
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
         ]);
 
-        $credentials = $request->only('email', 'password');
-        $remember = $request->has('remember');
-
-        if (Auth::attempt($credentials, $remember)) {
-            $request->session()->regenerate();
-            return redirect()->route('dashboard')->with('success', 'Login successful!');
+        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            return back()->withErrors(['email' => 'Invalid credentials provided.'])->onlyInput('email');
         }
 
-        return back()->withErrors([
-            'email' => 'Invalid credentials. Please check your email and password.',
-        ])->withInput($request->except('password'));
+        $request->session()->regenerate();
+
+        return redirect()->route($request->user()->hasPaid() && $request->user()->hasActiveLicense() ? 'dashboard' : 'billing');
     }
 
-    // Handle Registration
-    public function register(Request $request)
+    public function register(Request $request): RedirectResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8|confirmed',
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
         ]);
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'payment_status' => 'unpaid',
+            'is_paid' => false,
+            'plan_name' => 'InfiMal Pro',
         ]);
 
         Auth::login($user);
+        $request->session()->regenerate();
 
-        return redirect()->route('dashboard')->with('success', 'Account created successfully!');
+        return redirect()->route('billing')->with('success', 'Account created. Complete your $299 payment to unlock the platform.');
     }
 
-    // Forgot Password
-    public function forgotPassword(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
-        
-        // Add password reset logic here
-        return back()->with('status', 'Password reset link sent!');
-    }
-
-    // Reset Password
-    public function resetPassword(Request $request)
-    {
-        $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
-            'password' => 'required|min:8|confirmed',
-        ]);
-        
-        // Add password reset logic here
-        return redirect()->route('login')->with('status', 'Password reset successfully!');
-    }
-
-    // Logout
-    public function logout(Request $request)
+    public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        
-        return redirect()->route('login')->with('success', 'Logged out successfully!');
+
+        return redirect()->route('login');
     }
 }

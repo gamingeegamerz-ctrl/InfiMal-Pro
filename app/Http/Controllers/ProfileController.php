@@ -77,11 +77,15 @@ class ProfileController extends Controller
             'bio' => $request->bio,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Profile updated successfully',
-            'user' => $user,
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully',
+                'user' => $user,
+            ]);
+        }
+
+        return redirect()->route('profile.index')->with('success', 'Profile updated successfully.');
     }
 
     // Route compatibility wrappers for existing web.php bindings

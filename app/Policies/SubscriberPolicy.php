@@ -1,4 +1,4 @@
-k<?php
+<?php
 
 namespace App\Policies;
 

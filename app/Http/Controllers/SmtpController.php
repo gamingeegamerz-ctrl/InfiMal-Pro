@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SMTPAccount;
 use App\Services\SmtpService;
 use Illuminate\Http\Request;
+use App\Models\EmailLog;
 use Illuminate\Support\Facades\Auth;
 
 class SmtpController extends Controller
@@ -23,10 +24,10 @@ class SmtpController extends Controller
             'totalSmtp' => $smtpSettings->count(),
             'activeSmtp' => $smtpSettings->where('is_active', true)->count(),
             'usageStats' => [
-                'sent_today' => SMTPAccount::ownedBy($userId)->sum('sent_today'),
-                'sent_this_month' => 0,
-                'total_sent' => 0,
-                'success_rate' => 0,
+                'sent_today' => EmailLog::where('user_id', $userId)->whereDate('created_at', today())->where('status', 'sent')->count(),
+                'sent_this_month' => EmailLog::where('user_id', $userId)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->where('status', 'sent')->count(),
+                'total_sent' => EmailLog::where('user_id', $userId)->where('status', 'sent')->count(),
+                'success_rate' => max(0, round((EmailLog::where('user_id', $userId)->where('status', 'sent')->count() / max(1, EmailLog::where('user_id', $userId)->count())) * 100, 2)),
             ],
         ]);
     }
