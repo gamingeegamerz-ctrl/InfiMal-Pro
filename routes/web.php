@@ -97,9 +97,30 @@ Route::get('/track/click', [TrackingController::class, 'trackClick'])->name('tra
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
 
-// =================== PROTECTED ROUTES ===================
+Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->name('payment.webhook.paypal');
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
+    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->name('otp.verify.resend');
+});
+
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/payment', function () {
+        return view('payments.checkout');
+    })->name('payment');
+    Route::post('/paypal/create-order', [PayPalController::class, 'createOrder']);
+    Route::post('/paypal/capture-order/{orderId}', [PayPalController::class, 'captureOrder']);
+    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
+    Route::post('/payment/create-checkout', [PaymentController::class, 'processPaddleCheckout'])->name('payment.create');
+    Route::post('/payment/process', [PaymentController::class, 'processPaddleCheckout'])->name('payment.process');
+});
+
+// =================== PROTECTED ROUTES ===================
+
+Route::middleware(['auth','paid.access'])->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
@@ -146,22 +167,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/smtp/{smtp}/test', [SmtpController::class, 'test'])->name('smtp.test');
     Route::post('/smtp/{smtp}/verify', [SmtpController::class, 'verify'])->name('smtp.verify');
     Route::post('/smtp/{smtp}/set-default', [SmtpController::class, 'setDefault'])->name('smtp.set-default');
+    Route::post('/smtp/{smtp}/toggle', [SmtpController::class, 'toggle'])->name('smtp.toggle');
     
     // BILLING
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    
-    // ✅✅✅ PAYMENT - PAYPAL INTEGRATED ✅✅✅
-    Route::get('/payment', function () {
-        return view('payments.checkout');
-    })->name('payment');
-    
-    
-    Route::post('/paypal/create-order', [PayPalController::class, 'createOrder']);
-    Route::post('/paypal/capture-order/{orderId}', [PayPalController::class, 'captureOrder']);
-    
-    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
-    Route::post('/payment/create-checkout', [PaymentController::class, 'processPaddleCheckout'])->name('payment.create');
-    Route::post('/payment/process', [PaymentController::class, 'processPaddleCheckout'])->name('payment.process');
     
     // PROFILE
     Route::prefix('profile')->name('profile.')->group(function () {

@@ -2,172 +2,97 @@
 
 namespace App\Jobs;
 
+use App\Http\Controllers\TrackingController;
 use App\Models\EmailJob;
+use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Throwable;
+use Illuminate\Support\Str;
 
 class SendCampaignEmailJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $emailJobId;
-
-    public $tries   = 5;
-    public $timeout = 120;
-
-    public function __construct(int $emailJobId)
+    public function __construct(public int $emailJobId)
     {
-        $this->emailJobId = $emailJobId;
     }
 
     public function handle(): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
-
-        // Record hi nahi ? silently exit
-        if (!$emailJob) {
+        if (!$emailJob || $emailJob->status === 'sent') {
             return;
         }
 
-        // Already processed
-        if ($emailJob->status === 'sent') {
+        $smtp = SMTPAccount::ownedBy($emailJob->user_id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->first();
+
+        if (!$smtp) {
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Active SMTP not configured']);
             return;
         }
+
+        $existingLog = EmailLog::where('user_id', $emailJob->user_id)
+            ->where('campaign_id', $emailJob->campaign_id)
+            ->where('to_email', $emailJob->to_email)
+            ->latest('id')
+            ->first();
+
+        if ($existingLog && in_array($existingLog->status, ['sent', 'delivered'], true)) {
+            $emailJob->update(['status' => 'sent', 'sent_at' => $existingLog->sent_at ?? now(), 'smtp_id' => $existingLog->smtp_id]);
+            return;
+        }
+
+        $messageId = $existingLog?->message_id ?: (string) Str::uuid();
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
+                'user_id' => $emailJob->user_id,
+                'campaign_id' => $emailJob->campaign_id,
+                'smtp_id' => $smtp->id,
+                'to_email' => $emailJob->to_email,
+                'recipient_email' => $emailJob->to_email,
+                'subject' => $emailJob->subject,
+                'status' => 'pending',
+            ]
+        );
+
+        $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
+
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => $smtp->host,
+            'mail.mailers.smtp.port' => $smtp->port,
+            'mail.mailers.smtp.encryption' => $smtp->encryption === 'none' ? null : $smtp->encryption,
+            'mail.mailers.smtp.username' => $smtp->username,
+            'mail.mailers.smtp.password' => $smtp->password,
+            'mail.from.address' => $smtp->from_address,
+            'mail.from.name' => $smtp->from_name ?: 'InfiMal',
+        ]);
 
         try {
-            /*
-            |--------------------------------------------------------------------------
-            | 1?? GLOBAL DAILY LIMIT (LICENSE / USER)
-            |--------------------------------------------------------------------------
-            */
-            $dailyLimit = DB::table('licenses')
-                ->where('user_id', $emailJob->user_id)
-                ->value('daily_limit');
-
-            if ($dailyLimit) {
-                $sentToday = DB::table('email_logs')
-                    ->where('user_id', $emailJob->user_id)
-                    ->whereDate('created_at', today())
-                    ->count();
-
-                if ($sentToday >= $dailyLimit) {
-                    // Hard stop for today
-                    $this->release(120);
-                    return;
-                }
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | 2?? PICK SMTP (ROTATION + REPUTATION)
-            |--------------------------------------------------------------------------
-            */
-            $smtp = SMTPAccount::pickForSending();
-
-            if (!$smtp) {
-                // No SMTP available ? wait
-                $this->release(120);
-                return;
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | 3?? WARMUP CHECK (HOURLY LIMIT)
-            |--------------------------------------------------------------------------
-            */
-            if (!$smtp->canSendNow()) {
-                $this->release(60);
-                return;
-            }
-
-            // Mark usage early (fair rotation)
-            $smtp->markUsed();
-
-            /*
-            |--------------------------------------------------------------------------
-            | 4?? DYNAMIC SMTP CONFIG
-            |--------------------------------------------------------------------------
-            */
-            config([
-                'mail.default'                 => 'smtp',
-                'mail.mailers.smtp.host'       => $smtp->smtp_host,
-                'mail.mailers.smtp.port'       => $smtp->smtp_port,
-                'mail.mailers.smtp.encryption' => null,
-                'mail.mailers.smtp.username'   => $smtp->smtp_username,
-                'mail.mailers.smtp.password'   => $smtp->smtp_password,
-                'mail.from.address'            => $emailJob->from_email,
-                'mail.from.name'               => $emailJob->from_name,
-            ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | 5?? SEND EMAIL
-            |--------------------------------------------------------------------------
-            */
-            Mail::html($emailJob->body, function ($message) use ($emailJob) {
+            Mail::html($htmlBody, function ($message) use ($emailJob, $messageId): void {
                 $message->to($emailJob->to_email)
-                    ->subject($emailJob->subject);
+                    ->subject($emailJob->subject)
+                    ->getHeaders()
+                    ->addTextHeader('Message-ID', $messageId);
             });
 
-            /*
-            |--------------------------------------------------------------------------
-            | 6?? SUCCESS HANDLING
-            |--------------------------------------------------------------------------
-            */
-            $emailJob->status = 'sent';
-            $emailJob->sent_at = now();
-            $emailJob->save();
-
-            $smtp->markHourlySend();
-
-            DB::table('email_logs')->insert([
-                'user_id'     => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id'     => $smtp->id,
-                'to_email'    => $emailJob->to_email,
-                'status'      => 'sent',
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ]);
-
-        } catch (Throwable $e) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | 7?? FAILURE HANDLING (SAFE)
-            |--------------------------------------------------------------------------
-            */
-            Log::error('SendCampaignEmailJob failed', [
-                'email_job_id' => $this->emailJobId,
-                'error'        => $e->getMessage(),
-            ]);
-
-            DB::table('email_logs')->insert([
-                'user_id'     => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id'     => $smtp->id ?? null,
-                'to_email'    => $emailJob->to_email,
-                'status'      => 'failed',
-                'error'       => $e->getMessage(),
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ]);
-
-            // Soft penalty (temporary failures)
-            if (isset($smtp)) {
-                $smtp->reduceReputation(2);
-            }
-
-            // Retry later
-            $this->release(180);
+            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+            $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::warning('Queued send failed', ['email_job_id' => $emailJob->id, 'error' => $e->getMessage()]);
+            $emailJob->update(['status' => 'failed', 'error_message' => $e->getMessage(), 'smtp_id' => $smtp->id]);
+            $emailLog->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
         }
     }
 }
