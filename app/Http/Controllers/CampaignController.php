@@ -16,23 +16,41 @@ class CampaignController extends Controller
 {
     public function index()
     {
-        $campaigns = Campaign::where('user_id', Auth::id())
+        $userId = Auth::id();
+
+        $campaigns = Campaign::where('user_id', $userId)
             ->with('mailingList')
-            ->orderBy('created_at', 'desc')
+            ->orderByDesc('created_at')
             ->get();
-        
-        // Get stats
+
         $totalCampaigns = $campaigns->count();
+        $draftCount = $campaigns->where('status', 'draft')->count();
+        $scheduledCount = $campaigns->where('status', 'scheduled')->count();
+        $sendingCount = $campaigns->where('status', 'sending')->count();
         $sentCampaigns = $campaigns->where('status', 'sent')->count();
-        $draftCampaigns = $campaigns->where('status', 'draft')->count();
-        $scheduledCampaigns = $campaigns->where('status', 'scheduled')->count();
-        
+        $activeCount = $scheduledCount + $sendingCount;
+
+        $emailBase = DB::table('email_logs')->where('user_id', $userId);
+        $emailsSent = (clone $emailBase)->count();
+        $opened = (clone $emailBase)->where('opened', true)->count();
+        $clicked = (clone $emailBase)->where('clicked', true)->count();
+        $bounced = (clone $emailBase)->whereNotNull('bounced_at')->count();
+
+        $avgOpenRate = $emailsSent > 0 ? round(($opened / $emailsSent) * 100, 2) : 0;
+        $avgClickRate = $emailsSent > 0 ? round(($clicked / $emailsSent) * 100, 2) : 0;
+        $bounceRate = $emailsSent > 0 ? round(($bounced / $emailsSent) * 100, 2) : 0;
+
         return view('campaigns.index', compact(
             'campaigns',
             'totalCampaigns',
             'sentCampaigns',
-            'draftCampaigns',
-            'scheduledCampaigns'
+            'draftCount',
+            'scheduledCount',
+            'sendingCount',
+            'activeCount',
+            'avgOpenRate',
+            'avgClickRate',
+            'bounceRate'
         ));
     }
 

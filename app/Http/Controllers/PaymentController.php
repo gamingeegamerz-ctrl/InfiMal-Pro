@@ -2,31 +2,157 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Mail\PaidWelcomeOtpMail;
+use App\Models\License;
+use App\Models\Payment;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
-    public function webhook(Request $request)
+    public function paypalWebhook(Request $request)
     {
-        if (($request->alert_name ?? '') !== 'payment_succeeded') {
+        $eventType = (string) data_get($request->all(), 'event_type');
+        if ($eventType !== 'PAYMENT.CAPTURE.COMPLETED') {
             return response('Ignored', 200);
         }
 
-        $data = json_decode($request->passthrough, true);
+        $captureId = (string) data_get($request->all(), 'resource.id');
+        $orderId = (string) data_get($request->all(), 'resource.supplementary_data.related_ids.order_id');
 
-        $user = User::find($data['user_id'] ?? null);
+        if ($captureId === '' || $orderId === '') {
+            return response('Invalid payload', 422);
+        }
+
+        $accessToken = app(PayPalController::class)->token();
+
+        $order = Http::withToken($accessToken)
+            ->get("https://api-m.sandbox.paypal.com/v2/checkout/orders/{$orderId}")
+            ->throw()
+            ->json();
+
+        $amount = (float) data_get($order, 'purchase_units.0.payments.captures.0.amount.value', 0);
+        $currency = (string) data_get($order, 'purchase_units.0.payments.captures.0.amount.currency_code', 'USD');
+        $userId = (int) data_get($order, 'purchase_units.0.custom_id', 0);
+
+        if ($amount < 299 || $currency !== 'USD' || $userId <= 0) {
+            return response('Verification failed', 422);
+        }
+
+        $user = User::find($userId);
         if (!$user) {
             return response('User not found', 404);
         }
 
+        Payment::updateOrCreate(
+            ['payment_id' => $captureId],
+            [
+                'user_id' => $user->id,
+                'plan' => 'InfiMal Pro',
+                'amount' => $amount,
+                'currency' => $currency,
+                'status' => 'completed',
+                'payment_method' => 'paypal',
+                'metadata' => ['order_id' => $orderId],
+            ]
+        );
+
+        $licenseKey = 'INFIMAL-' . strtoupper(Str::random(24));
+
+        License::updateOrCreate(
+            ['user_id' => $user->id, 'is_active' => true],
+            [
+                'license_key' => $licenseKey,
+                'plan_type' => 'pro',
+                'duration_days' => 3650,
+                'expires_at' => now()->addYears(10),
+                'is_active' => true,
+            ]
+        );
+
         $user->update([
+            'is_paid' => true,
             'payment_status' => 'paid',
-            'license_key' => 'INFIMAL-' . strtoupper(Str::random(20)),
+            'paid_at' => now(),
+            'license_key' => $licenseKey,
+            'license_status' => 'active',
+            'transaction_id' => $captureId,
         ]);
+
+        $this->issueOtp($user);
 
         return response('OK', 200);
     }
-}
 
+
+
+    public function success()
+    {
+        return redirect()->route('otp.verify.form')->with('success', 'Payment captured. Waiting for secure webhook verification.');
+    }
+
+    public function processPaddleCheckout(Request $request)
+    {
+        return response()->json(['message' => 'Paddle flow is disabled. Use PayPal checkout.'], 422);
+    }
+
+    private function issueOtp(User $user): string
+    {
+        $otp = (string) random_int(100000, 999999);
+
+        $user->update([
+            'otp_code' => bcrypt($otp),
+            'otp_expires_at' => now()->addMinutes(15),
+            'otp_verified_at' => null,
+        ]);
+
+        Mail::to($user->email)->queue(new PaidWelcomeOtpMail($user->fresh(), $otp));
+
+        return $otp;
+    }
+
+    public function showOtpForm()
+    {
+        return view('auth.verify-otp');
+    }
+
+    public function verifyOtp(Request $request)
+    {
+        $request->validate(['otp' => 'required|digits:6']);
+
+        $user = $request->user();
+
+        if (!$user->otp_expires_at || now()->greaterThan($user->otp_expires_at)) {
+            return redirect()->route('otp.verify.form')->with('error', 'OTP expired. Please request a new code.');
+        }
+
+        if (!password_verify((string) $request->input('otp'), (string) $user->otp_code)) {
+            return back()->withErrors(['otp' => 'Invalid OTP code.']);
+        }
+
+        $user->update([
+            'otp_verified_at' => now(),
+            'otp_code' => null,
+            'otp_expires_at' => null,
+        ]);
+
+        return redirect()->route('dashboard')->with('success', 'OTP verified successfully.');
+    }
+
+    public function resendOtp(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user->hasPaid() || !$user->hasActiveLicense()) {
+            return redirect()->route('payment')->with('error', 'Complete payment first.');
+        }
+
+        $this->issueOtp($user);
+
+        return back()->with('success', 'A new OTP has been sent to your email.');
+    }
+
+}

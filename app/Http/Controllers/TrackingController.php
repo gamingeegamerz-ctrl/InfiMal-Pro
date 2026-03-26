@@ -11,41 +11,42 @@ class TrackingController extends Controller
 {
     public function openById(int $id): Response
     {
-        EmailLog::whereKey($id)->update(['opened' => true]);
+        EmailLog::whereKey($id)
+            ->whereNull('opened_at')
+            ->update(['opened' => true, 'opened_at' => now()]);
 
         return $this->pixel();
     }
 
     public function clickById(Request $request, int $id): RedirectResponse
     {
-        EmailLog::whereKey($id)->update(['clicked' => true]);
+        EmailLog::whereKey($id)
+            ->whereNull('clicked_at')
+            ->update(['clicked' => true, 'clicked_at' => now()]);
 
-        $url = (string) $request->query('url', '/');
-
-        return redirect()->away($url);
+        return redirect()->away((string) $request->query('url', '/'));
     }
 
-    // Backward-compatible endpoints used by existing links/routes
     public function trackOpen(Request $request): Response
     {
-        if ($request->filled('id')) {
-            return $this->openById((int) $request->query('id'));
-        }
-
-        return $this->pixel();
+        return $request->filled('id') ? $this->openById((int) $request->query('id')) : $this->pixel();
     }
 
     public function trackClick(Request $request): RedirectResponse
     {
-        if ($request->filled('id')) {
-            return $this->clickById($request, (int) $request->query('id'));
-        }
-
-        return redirect($request->query('url', '/'));
+        return $request->filled('id')
+            ? $this->clickById($request, (int) $request->query('id'))
+            : redirect((string) $request->query('url', '/'));
     }
 
     public function trackBounce(Request $request)
     {
+        $request->validate(['message_id' => 'required|string']);
+
+        EmailLog::where('message_id', $request->string('message_id'))
+            ->whereNull('bounced_at')
+            ->update(['status' => 'bounced', 'bounced_at' => now()]);
+
         return response()->json(['success' => true]);
     }
 
