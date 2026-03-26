@@ -293,23 +293,6 @@ class DashboardController extends Controller
             $data['unsubscribeRate'] = $data['totalSubscribers'] > 0 ? 
                 round(($totalUnsubscribes / $data['totalSubscribers']) * 100, 2) : 0;
             
-            // SMTP status analytics (real DB)
-            if ($this->tableExists('smtps')) {
-                $smtpTotal = DB::table('smtps')->where('user_id', $user->id)->count();
-                $smtpActive = DB::table('smtps')->where('user_id', $user->id)->where('is_active', true)->count();
-                $smtpFailed = DB::table('smtps')->where('user_id', $user->id)->where('is_active', false)->count();
-
-                $data['smtpTotal'] = $smtpTotal;
-                $data['smtpActive'] = $smtpActive;
-                $data['smtpFailed'] = $smtpFailed;
-                $data['smtpStatus'] = $smtpTotal === 0 ? 'Not Connected' : ($smtpActive > 0 ? 'Active' : 'Failed');
-            } else {
-                $data['smtpTotal'] = 0;
-                $data['smtpActive'] = 0;
-                $data['smtpFailed'] = 0;
-                $data['smtpStatus'] = 'Not Connected';
-            }
-
         } catch (\Exception $e) {
             \Log::error('Dashboard analytics error: ' . $e->getMessage());
         }

@@ -6,7 +6,6 @@ use App\Models\SMTPAccount;
 use App\Services\SmtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class SmtpController extends Controller
 {
@@ -19,42 +18,15 @@ class SmtpController extends Controller
         $userId = Auth::id();
         $smtpSettings = SMTPAccount::ownedBy($userId)->latest()->get();
 
-        $activeSmtp = $smtpSettings->where('is_active', true)->count();
-        $failedSmtp = $smtpSettings->where('is_active', false)->count();
-        $smtpStatus = $smtpSettings->isEmpty() ? 'Not Connected' : ($activeSmtp > 0 ? 'Active' : 'Failed');
-
-        $sentToday = DB::table('email_logs')
-            ->where('user_id', $userId)
-            ->whereDate('created_at', today())
-            ->count();
-
-        $sentThisMonth = DB::table('email_logs')
-            ->where('user_id', $userId)
-            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->count();
-
-        $totalSent = DB::table('email_logs')
-            ->where('user_id', $userId)
-            ->count();
-
-        $failedCount = DB::table('email_logs')
-            ->where('user_id', $userId)
-            ->where('status', 'failed')
-            ->count();
-
-        $successRate = $totalSent > 0 ? round((($totalSent - $failedCount) / $totalSent) * 100, 2) : 0;
-
         return view('smtp.index', [
             'smtpSettings' => $smtpSettings,
             'totalSmtp' => $smtpSettings->count(),
-            'activeSmtp' => $activeSmtp,
-            'failedSmtp' => $failedSmtp,
-            'smtpStatus' => $smtpStatus,
+            'activeSmtp' => $smtpSettings->where('is_active', true)->count(),
             'usageStats' => [
-                'sent_today' => $sentToday,
-                'sent_this_month' => $sentThisMonth,
-                'total_sent' => $totalSent,
-                'success_rate' => $successRate,
+                'sent_today' => SMTPAccount::ownedBy($userId)->sum('sent_today'),
+                'sent_this_month' => 0,
+                'total_sent' => 0,
+                'success_rate' => 0,
             ],
         ]);
     }
@@ -100,7 +72,7 @@ class SmtpController extends Controller
             'host' => 'required|string|max:255',
             'port' => 'required|integer|min:1|max:65535',
             'username' => 'required|string|max:255',
-            'password' => 'nullable|string|max:1000',
+            'password' => 'nullable|string|max:1000',  // ✅ Nullable for updates
             'encryption' => 'required|in:tls,ssl,none',
             'from_address' => 'nullable|email|max:255',
             'from_name' => 'nullable|string|max:255',
@@ -109,7 +81,7 @@ class SmtpController extends Controller
             'warmup_enabled' => 'nullable|boolean',
         ]);
 
-        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);
+        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);  // ✅ Pass $smtp for update
 
         return back()->with('success', 'SMTP updated successfully.');
     }
@@ -121,12 +93,6 @@ class SmtpController extends Controller
         $target = $data['email'] ?? Auth::user()->email;
 
         $result = $this->smtpService->testConnection($smtpModel, $target);
-
-        if (!$result['success']) {
-            $smtpModel->update(['is_active' => false]);
-        } else {
-            $smtpModel->update(['is_active' => true]);
-        }
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -143,12 +109,6 @@ class SmtpController extends Controller
     {
         $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
         $result = $this->smtpService->testConnection($smtpModel, Auth::user()->email);
-
-        if (!$result['success']) {
-            $smtpModel->update(['is_active' => false]);
-        } else {
-            $smtpModel->update(['is_active' => true]);
-        }
 
         return response()->json([
             'verified' => $result['success'],

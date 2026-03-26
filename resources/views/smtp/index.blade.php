@@ -165,7 +165,7 @@
                             <div>
                                 <p class="text-white/80 text-base font-medium leading-normal">SMTP Configurations</p>
                                 <p class="text-white tracking-light text-3xl font-bold leading-tight">{{ $totalSmtp }}</p>
-                                <p class="text-green-400 text-sm font-medium leading-normal">{{ $activeSmtp }} active • Status: {{ $smtpStatus }}</p>
+                                <p class="text-green-400 text-sm font-medium leading-normal">{{ $activeSmtp }} active</p>
                             </div>
                             <div class="p-3 rounded-full bg-blue-500/20">
                                 <span class="material-symbols-outlined text-blue-500">dns</span>

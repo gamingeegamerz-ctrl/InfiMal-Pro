@@ -97,17 +97,9 @@ Route::get('/track/click', [TrackingController::class, 'trackClick'])->name('tra
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
 
-Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->name('payment.webhook.paypal');
-
-Route::middleware(['auth'])->group(function () {
-    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
-});
-
-
 // =================== PROTECTED ROUTES ===================
 
-Route::middleware(['auth','paid.access'])->group(function () {
+Route::middleware(['auth'])->group(function () {
     
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
