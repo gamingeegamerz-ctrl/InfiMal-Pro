@@ -12,21 +12,49 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class CampaignController extends Controller
 {
     public function index(): View
     {
-        $campaigns = Campaign::where('user_id', Auth::id())->with('mailingList')->latest()->paginate(12);
+        $userId = Auth::id();
 
-        return view('campaigns.index', [
-            'campaigns' => $campaigns,
-            'totalCampaigns' => Campaign::where('user_id', Auth::id())->count(),
-            'sentCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'sent')->count(),
-            'draftCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'draft')->count(),
-            'scheduledCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'scheduled')->count(),
-        ]);
+        $campaigns = Campaign::where('user_id', $userId)
+            ->with('mailingList')
+            ->orderByDesc('created_at')
+            ->paginate(12);
+
+        $totalCampaigns = Campaign::where('user_id', $userId)->count();
+        $sentCampaigns = Campaign::where('user_id', $userId)->where('status', 'sent')->count();
+        $draftCount = Campaign::where('user_id', $userId)->where('status', 'draft')->count();
+        $scheduledCount = Campaign::where('user_id', $userId)->where('status', 'scheduled')->count();
+        $sendingCount = Campaign::where('user_id', $userId)->where('status', 'sending')->count();
+        $activeCount = $scheduledCount + $sendingCount;
+
+        $emailBase = DB::table('email_logs')->where('user_id', $userId);
+        $emailsSent = (clone $emailBase)->count();
+        $opened = (clone $emailBase)->where('opened', true)->count();
+        $clicked = (clone $emailBase)->where('clicked', true)->count();
+        $bounced = (clone $emailBase)->whereNotNull('bounced_at')->count();
+
+        $avgOpenRate = $emailsSent > 0 ? round(($opened / $emailsSent) * 100, 2) : 0;
+        $avgClickRate = $emailsSent > 0 ? round(($clicked / $emailsSent) * 100, 2) : 0;
+        $bounceRate = $emailsSent > 0 ? round(($bounced / $emailsSent) * 100, 2) : 0;
+
+        return view('campaigns.index', compact(
+            'campaigns',
+            'totalCampaigns',
+            'sentCampaigns',
+            'draftCount',
+            'scheduledCount',
+            'sendingCount',
+            'activeCount',
+            'avgOpenRate',
+            'avgClickRate',
+            'bounceRate'
+        ));
     }
 
     public function create(): View

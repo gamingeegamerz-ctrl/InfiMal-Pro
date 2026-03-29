@@ -7,6 +7,7 @@ use App\Services\SmtpService;
 use Illuminate\Http\Request;
 use App\Models\EmailLog;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SmtpController extends Controller
 {
@@ -23,13 +24,53 @@ class SmtpController extends Controller
             'smtpSettings' => $smtpSettings,
             'totalSmtp' => $smtpSettings->count(),
             'activeSmtp' => $smtpSettings->where('is_active', true)->count(),
+            'smtpStatus' => $this->resolveSmtpStatus($userId),
             'usageStats' => [
-                'sent_today' => EmailLog::where('user_id', $userId)->whereDate('created_at', today())->where('status', 'sent')->count(),
-                'sent_this_month' => EmailLog::where('user_id', $userId)->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->where('status', 'sent')->count(),
-                'total_sent' => EmailLog::where('user_id', $userId)->where('status', 'sent')->count(),
-                'success_rate' => max(0, round((EmailLog::where('user_id', $userId)->where('status', 'sent')->count() / max(1, EmailLog::where('user_id', $userId)->count())) * 100, 2)),
+                'sent_today' => DB::table('email_logs')->where('user_id', $userId)->whereDate('created_at', today())->count(),
+                'sent_this_month' => DB::table('email_logs')->where('user_id', $userId)->whereMonth('created_at', now()->month)->count(),
+                'total_sent' => DB::table('email_logs')->where('user_id', $userId)->count(),
+                'success_rate' => $this->successRate($userId),
             ],
         ]);
+    }
+
+    private function successRate(int $userId): float
+    {
+        $total = DB::table('email_logs')->where('user_id', $userId)->count();
+        if ($total === 0) {
+            return 0;
+        }
+
+        $success = DB::table('email_logs')->where('user_id', $userId)->whereIn('status', ['sent', 'delivered'])->count();
+
+        return round(($success / $total) * 100, 2);
+    }
+
+    private function resolveSmtpStatus(int $userId): string
+    {
+        $smtp = SMTPAccount::ownedBy($userId)->orderByDesc('is_default')->latest('id')->first();
+
+        if (!$smtp) {
+            return 'Not Connected';
+        }
+
+        if (!$smtp->is_active) {
+            return 'Failed';
+        }
+
+        $connection = @fsockopen($smtp->host, (int) $smtp->port, $errno, $errstr, 3);
+        if (!$connection) {
+            return 'Failed';
+        }
+
+        fclose($connection);
+
+        return 'Active';
+    }
+
+    public function health()
+    {
+        return response()->json(['status' => $this->resolveSmtpStatus(Auth::id())]);
     }
 
     public function store(Request $request)
@@ -73,7 +114,7 @@ class SmtpController extends Controller
             'host' => 'required|string|max:255',
             'port' => 'required|integer|min:1|max:65535',
             'username' => 'required|string|max:255',
-            'password' => 'nullable|string|max:1000',  // ✅ Nullable for updates
+            'password' => 'nullable|string|max:1000',
             'encryption' => 'required|in:tls,ssl,none',
             'from_address' => 'nullable|email|max:255',
             'from_name' => 'nullable|string|max:255',
@@ -82,7 +123,7 @@ class SmtpController extends Controller
             'warmup_enabled' => 'nullable|boolean',
         ]);
 
-        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);  // ✅ Pass $smtp for update
+        $this->smtpService->saveForUser(Auth::id(), $data, $smtp);
 
         return back()->with('success', 'SMTP updated successfully.');
     }
@@ -95,7 +136,17 @@ class SmtpController extends Controller
 
         $result = $this->smtpService->testConnection($smtpModel, $target);
 
-        return response()->json($result, $result['success'] ? 200 : 422);
+        $smtpModel->update(['is_active' => (bool) $result['success']]);
+
+        return response()->json($result + ['status' => $result['success'] ? 'Active' : 'Failed'], $result['success'] ? 200 : 422);
+    }
+
+    public function toggle(string $smtp)
+    {
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $smtpModel->update(['is_active' => !$smtpModel->is_active]);
+
+        return response()->json(['success' => true, 'status' => $smtpModel->is_active ? 'Active' : 'Failed']);
     }
 
     public function setDefault(string $smtp)
@@ -126,7 +177,7 @@ class SmtpController extends Controller
             ->first();
 
         if (!$smtp) {
-            return response()->json(['error' => 'SMTP not configured'], 404);
+            return response()->json(['error' => 'SMTP not configured', 'status' => 'Not Connected'], 404);
         }
 
         return response()->json([
@@ -136,6 +187,7 @@ class SmtpController extends Controller
             'from_address' => $smtp->from_address,
             'from_name' => $smtp->from_name,
             'encryption' => $smtp->encryption,
+            'status' => $this->resolveSmtpStatus(Auth::id()),
         ]);
     }
 

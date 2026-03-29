@@ -6,18 +6,34 @@ use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class MessageController extends Controller
 {
     public function index(): View
     {
-        $messages = Message::where('user_id', Auth::id())->latest()->paginate(15);
+        $userId = Auth::id();
+
+        if (!Schema::hasTable('messages')) {
+            return view('messages.index', [
+                'messages' => collect([]),
+                'totalMessages' => 0,
+                'unreadMessages' => 0,
+                'emailsSent' => DB::table('email_logs')->where('user_id', $userId)->count(),
+                'queueStatus' => 'Queue table not found',
+            ]);
+        }
+
+        $messages = DB::table('messages')->where('user_id', $userId)->latest()->paginate(15);
 
         return view('messages.index', [
             'messages' => $messages,
-            'totalMessages' => Message::where('user_id', Auth::id())->count(),
-            'unreadMessages' => Message::where('user_id', Auth::id())->where('is_read', false)->count(),
+            'totalMessages' => DB::table('messages')->where('user_id', $userId)->count(),
+            'unreadMessages' => DB::table('messages')->where('user_id', $userId)->where('is_read', false)->count(),
+            'emailsSent' => DB::table('email_logs')->where('user_id', $userId)->count(),
+            'queueStatus' => Schema::hasTable('jobs') ? 'Active' : 'Not configured',
         ]);
     }
 
