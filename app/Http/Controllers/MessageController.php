@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +57,12 @@ class MessageController extends Controller
             ]);
         }
 
+        $messages = DB::table('messages')->where('user_id', $userId)->latest()->paginate(15);
+
+        return view('messages.index', [
+            'messages' => $messages,
+            'totalMessages' => DB::table('messages')->where('user_id', $userId)->count(),
+            'unreadMessages' => DB::table('messages')->where('user_id', $userId)->where('is_read', false)->count(),
         // USE ELOQUENT (CODEX) BUT KEEP MAIN DATA
         $messages = Message::where('user_id', $userId)->latest()->paginate(15);
 
@@ -70,6 +79,7 @@ class MessageController extends Controller
         ]);
     }
 
+    public function create()
     public function create(): View
     {
         return view('messages.create');

@@ -17,6 +17,12 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'google_id',
+        'payment_status',
+        'is_paid',
+        'paid_at',
+        'license_key',
+        'license_status',
         'avatar',
         'timezone',
         'phone',
@@ -51,6 +57,9 @@ class User extends Authenticatable
         'paid_at' => 'datetime',
         'payment_date' => 'datetime',
         'plan_expiry_date' => 'datetime',
+        'otp_expires_at' => 'datetime',
+        'otp_verified_at' => 'datetime',
+        'is_paid' => 'boolean',
         'license_expires_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
@@ -61,11 +70,13 @@ class User extends Authenticatable
         return $this->hasMany(Campaign::class, 'user_id');
     }
 
+    public function subscriberLists(): HasMany
     public function lists(): HasMany
     {
         return $this->hasMany(MailingList::class, 'user_id');
     }
 
+    public function lists(): HasMany
     public function mailingLists(): HasMany
     {
         return $this->subscriberLists();
@@ -81,7 +92,12 @@ class User extends Authenticatable
 
     public function subscriberLists(): HasMany
     {
-        return $this->lists();
+        return $this->subscriberLists();
+    }
+
+    public function mailingLists(): HasMany
+    {
+        return $this->subscriberLists();
     }
 
     public function subscribers(): HasMany
@@ -89,6 +105,9 @@ class User extends Authenticatable
         return $this->hasMany(Subscriber::class, 'user_id');
     }
 
+    public function licenses(): HasMany
+    {
+        return $this->hasMany(License::class);
     public function smtpAccounts(): HasMany
     {
         return $this->hasMany(SMTPAccount::class, 'user_id');
@@ -106,6 +125,7 @@ class User extends Authenticatable
 
     public function activeLicense(): HasOne
     {
+        return $this->hasOne(License::class)->where('is_active', true);
         return $this->hasOne(License::class, 'user_id')->where('status', 'active');
         return $this->hasOne(License::class, 'user_id')->where(function($query) {
             $query->where('status', 'active')->orWhere('is_active', true);
@@ -114,6 +134,17 @@ class User extends Authenticatable
 
     public function hasPaid(): bool
     {
+        return (bool) ($this->is_paid || in_array((string) $this->payment_status, ['paid'], true) || !is_null($this->paid_at));
+    }
+
+    public function hasPaidAccess(): bool
+    {
+        $paid = (bool) $this->is_paid;
+        $licenseActive = $this->activeLicense()->exists()
+            || ((string) $this->license_status === 'active' && !empty($this->license_key));
+        $otpRequired = !is_null($this->otp_code) || !is_null($this->otp_expires_at);
+
+        return $paid && $licenseActive && (!$otpRequired || !is_null($this->otp_verified_at));
         return $this->is_paid || (string) $this->payment_status === 'paid' || ! is_null($this->paid_at);
         return (bool) ($this->is_paid || (string) $this->payment_status === 'paid' || !is_null($this->paid_at));
     }

@@ -49,6 +49,7 @@ Route::get('/track/click/{id}', [TrackingController::class, 'clickById'])->name(
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 
+Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->name('payment.webhook.paypal');
 Route::middleware('auth')->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->name('billing.checkout')->middleware('throttle:10,1');
@@ -72,6 +73,12 @@ Route::post('/webhook/paddle', [PaymentController::class, 'handleWebhook'])->wit
 Route::middleware(['auth'])->group(function () {
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
     Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
+});
+
+
+// =================== PROTECTED ROUTES ===================
+
+Route::middleware(['auth','paid.access'])->group(function () {
     Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->name('otp.verify.resend');
 });
 
@@ -105,6 +112,7 @@ Route::middleware(['auth', 'paid.access'])->group(function () {
     Route::post('/smtp/{smtp}/test', [SmtpController::class, 'test'])->name('smtp.test');
     Route::post('/smtp/{smtp}/verify', [SmtpController::class, 'verify'])->name('smtp.verify');
     Route::post('/smtp/{smtp}/set-default', [SmtpController::class, 'setDefault'])->name('smtp.set-default');
+    Route::post('/smtp/{smtp}/toggle', [SmtpController::class, 'toggle'])->name('smtp.toggle');
     Route::get('/api/smtp/credentials', [SmtpController::class, 'getCredentials'])->name('api.smtp.credentials');
 
     Route::prefix('profile')->name('profile.')->group(function (): void {

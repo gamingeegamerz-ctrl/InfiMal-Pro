@@ -11,16 +11,58 @@ use Illuminate\View\View;
 
 class AuthController extends Controller
 {
+    public function showLoginForm()
     public function showLoginForm(): View
     {
         return view('auth.login');
     }
 
+    public function showRegisterForm()
     public function showRegisterForm(): View
     {
         return view('auth.register');
     }
 
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
+            $request->session()->regenerate();
+
+            $user = $request->user();
+
+            if (!$user->hasPaid()) {
+                return redirect()->route('payment');
+            }
+
+            if (!$user->otp_verified_at) {
+                return redirect()->route('otp.verify.form');
+            }
+
+            return redirect()->route('dashboard')->with('success', 'Login successful.');
+        }
+
+        return back()->withErrors(['email' => 'Invalid credentials.'])->withInput($request->except('password'));
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $user = User::create([
+            'name' => $request->string('name'),
+            'email' => $request->string('email'),
+            'password' => Hash::make((string) $request->input('password')),
+            'payment_status' => 'unpaid',
+            'is_paid' => false,
     public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
@@ -87,6 +129,10 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        return redirect()->route('payment')->with('success', 'Account created. Complete payment to continue.');
+    }
+
+    public function forgotPassword(Request $request)
         return redirect()->route('billing')->with('success', 'Account created. Complete your $299 payment to unlock the platform.');
         return redirect()
             ->route('payment')
@@ -100,6 +146,7 @@ class AuthController extends Controller
         return back()->with('status', 'Password reset link sent!');
     }
 
+    public function resetPassword(Request $request)
     public function resetPassword(Request $request): RedirectResponse
     {
         $request->validate([
@@ -108,6 +155,10 @@ class AuthController extends Controller
             'password' => 'required|min:8|confirmed',
         ]);
 
+        return redirect()->route('login')->with('status', 'Password reset successfully!');
+    }
+
+    public function logout(Request $request)
         return redirect()
             ->route('login')
             ->with('status', 'Password reset successfully!');
@@ -120,6 +171,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        return redirect()->route('login')->with('success', 'Logged out successfully!');
         return redirect()->route('login');
         return redirect()
             ->route('login')

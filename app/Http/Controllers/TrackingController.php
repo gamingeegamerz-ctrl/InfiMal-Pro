@@ -13,6 +13,9 @@ class TrackingController extends Controller
 {
     public function openById(int $id): Response
     {
+        EmailLog::whereKey($id)
+            ->whereNull('opened_at')
+            ->update(['opened' => true, 'opened_at' => now()]);
         $log = EmailLog::find($id);
         if ($log) {
             $log->update(['opened' => true]);
@@ -60,6 +63,16 @@ class TrackingController extends Controller
 
     public function clickById(Request $request, int $id): RedirectResponse
     {
+        EmailLog::whereKey($id)
+            ->whereNull('clicked_at')
+            ->update(['clicked' => true, 'clicked_at' => now()]);
+
+        return redirect()->away((string) $request->query('url', '/'));
+    }
+
+    public function trackOpen(Request $request): Response
+    {
+        return $request->filled('id') ? $this->openById((int) $request->query('id')) : $this->pixel();
         $log = EmailLog::find($id);
         if ($log) {
 
@@ -89,6 +102,9 @@ class TrackingController extends Controller
 
     public function trackBounce(Request $request)
     {
+        return $request->filled('id')
+            ? $this->clickById($request, (int) $request->query('id'))
+            : redirect((string) $request->query('url', '/'));
         $validated = $request->validate([
             'email_log_id' => ['required', 'integer'],
             'reason' => ['nullable', 'string', 'max:1000'],
@@ -157,6 +173,11 @@ class TrackingController extends Controller
     // ✅ MERGED BOTH BOUNCE HANDLERS INTO ONE (NO DUPLICATE FUNCTION)
     public function trackBounce(Request $request)
     {
+        $request->validate(['message_id' => 'required|string']);
+
+        EmailLog::where('message_id', $request->string('message_id'))
+            ->whereNull('bounced_at')
+            ->update(['status' => 'bounced', 'bounced_at' => now()]);
         // MAIN style (message_id)
         if ($request->has('message_id')) {
             EmailLog::where('message_id', $request->string('message_id'))

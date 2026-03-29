@@ -681,6 +681,8 @@
         if(!themeToggle) return;
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         const savedTheme = localStorage.getItem('infimal_theme');
+        
+        // Set initial theme
         if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
             document.documentElement.classList.add('dark');
         }
