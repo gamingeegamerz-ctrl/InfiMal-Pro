@@ -52,11 +52,8 @@ class User extends Authenticatable
         'payment_date' => 'datetime',
         'plan_expiry_date' => 'datetime',
         'license_expires_at' => 'datetime',
-        'otp_expires_at' => 'datetime',
-        'otp_verified_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
-        'password' => 'hashed',
     ];
 
     public function campaigns(): HasMany
@@ -64,12 +61,12 @@ class User extends Authenticatable
         return $this->hasMany(Campaign::class, 'user_id');
     }
 
-    public function subscriberLists(): HasMany
+    public function lists(): HasMany
     {
         return $this->hasMany(MailingList::class, 'user_id');
     }
 
-    public function lists(): HasMany
+    public function mailingLists(): HasMany
     {
         return $this->subscriberLists();
     }
@@ -101,6 +98,7 @@ class User extends Authenticatable
 
     public function activeLicense(): HasOne
     {
+        return $this->hasOne(License::class, 'user_id')->where('status', 'active');
         return $this->hasOne(License::class, 'user_id')->where(function($query) {
             $query->where('status', 'active')->orWhere('is_active', true);
         });
@@ -108,11 +106,13 @@ class User extends Authenticatable
 
     public function hasPaid(): bool
     {
+        return $this->is_paid || (string) $this->payment_status === 'paid' || ! is_null($this->paid_at);
         return (bool) ($this->is_paid || (string) $this->payment_status === 'paid' || !is_null($this->paid_at));
     }
 
     public function hasActiveLicense(): bool
     {
+        return $this->activeLicense()->exists() || (! empty($this->license_key) && ($this->license_status === 'active' || $this->license_status === null));
         return $this->activeLicense()->exists()
             || ((string) $this->license_status === 'active' && !empty($this->license_key));
     }

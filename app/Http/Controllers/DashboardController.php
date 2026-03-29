@@ -29,14 +29,25 @@ class DashboardController extends Controller
         $clicks = (clone $logs)->where('clicked', true)->count();
         $bounces = (clone $logs)->where('status', 'bounced')->count();
 
-        $recentTrend = collect(range(6, 0))->reverse()->map(function ($daysAgo) use ($user) {
-            $date = now()->subDays($daysAgo)->toDateString();
+        // MAIN VERSION FEATURE (KEPT, NOT REMOVED)
+        $recentTrend = collect(range(6, 0))->map(function ($daysAgo) use ($user) {
+            $date = now()->subDays($daysAgo);
 
             return [
-                'label' => now()->subDays($daysAgo)->format('M d'),
-                'sent' => EmailLog::where('user_id', $user->id)->whereDate('created_at', $date)->count(),
-                'opens' => EmailLog::where('user_id', $user->id)->where('opened', true)->whereDate('created_at', $date)->count(),
-                'clicks' => EmailLog::where('user_id', $user->id)->where('clicked', true)->whereDate('created_at', $date)->count(),
+                'label' => $date->format('M d'),
+                'sent' => EmailLog::where('user_id', $user->id)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'opens' => EmailLog::where('user_id', $user->id)
+                    ->where('opened', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'clicks' => EmailLog::where('user_id', $user->id)
+                    ->where('clicked', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
             ];
         })->values();
 
@@ -49,10 +60,16 @@ class DashboardController extends Controller
                 'click_rate' => $sent > 0 ? round(($clicks / $sent) * 100, 2) : 0,
                 'bounce_rate' => $sent > 0 ? round(($bounces / $sent) * 100, 2) : 0,
                 'smtp_accounts' => SMTPAccount::ownedBy($user->id)->count(),
-                'unread_messages' => Message::where('user_id', $user->id)->where('is_read', false)->count(),
+                'unread_messages' => Message::where('user_id', $user->id)
+                    ->where('is_read', false)
+                    ->count(),
             ],
+
             'recentCampaigns' => (clone $campaigns)->latest()->limit(5)->get(),
+
             'recentSubscribers' => (clone $subscribers)->latest()->limit(5)->get(),
+
+            // MAIN FEATURE PRESERVED
             'trend' => $recentTrend,
         ]);
     }

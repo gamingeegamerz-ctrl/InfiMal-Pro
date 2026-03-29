@@ -16,6 +16,8 @@
                 <div class="flex justify-between"><span>License</span><strong>{{ $license?->license_key ?? 'Pending payment' }}</strong></div>
             </div>
             @if(!$user->hasPaid())
+                <form method="POST" action="{{ route('billing.checkout') }}" class="mt-6">@csrf<button class="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white">Pay $299</button></form>
+                <p class="mt-3 text-xs text-slate-500">You will be redirected to PayPal for approval, then InfiMal verifies the approved order server-side before activating your account.</p>
                 <button id="pay-btn" class="mt-6 w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white">Pay $299</button>
                 <p class="mt-3 text-xs text-slate-500">Payment is verified on the backend with PayPal before any access is granted.</p>
             @else

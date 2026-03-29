@@ -29,23 +29,25 @@ class AuthController extends Controller
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
-            return back()->withErrors(['email' => 'Invalid credentials provided.'])->onlyInput('email');
+            return back()
+                ->withErrors(['email' => 'Invalid credentials provided.'])
+                ->onlyInput('email');
         }
 
         $request->session()->regenerate();
         $user = $request->user();
 
-        // Check payment status
+        // Payment check
         if (! $user->hasPaid()) {
             return redirect()->route('payment');
         }
 
-        // Check license status
+        // License check
         if (! $user->hasActiveLicense()) {
             return redirect()->route('billing');
         }
 
-        // Check OTP verification
+        // OTP check
         if (! $user->otp_verified_at) {
             return redirect()->route('otp.verify.form');
         }
@@ -74,7 +76,9 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('payment')->with('success', 'Account created. Complete payment to continue.');
+        return redirect()
+            ->route('payment')
+            ->with('success', 'Account created. Complete payment to continue.');
     }
 
     public function forgotPassword(Request $request): RedirectResponse
@@ -92,15 +96,20 @@ class AuthController extends Controller
             'password' => 'required|min:8|confirmed',
         ]);
 
-        return redirect()->route('login')->with('status', 'Password reset successfully!');
+        return redirect()
+            ->route('login')
+            ->with('status', 'Password reset successfully!');
     }
 
     public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('success', 'Logged out successfully!');
+        return redirect()
+            ->route('login')
+            ->with('success', 'Logged out successfully!');
     }
 }

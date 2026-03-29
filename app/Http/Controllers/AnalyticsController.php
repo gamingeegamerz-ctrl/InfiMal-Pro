@@ -38,21 +38,38 @@ class AnalyticsController extends Controller
     private function buildPayload(): array
     {
         $userId = Auth::id();
+
         $base = EmailLog::where('user_id', $userId);
+
         $sent = (clone $base)->count();
         $opens = (clone $base)->where('opened', true)->count();
         $clicks = (clone $base)->where('clicked', true)->count();
         $bounces = (clone $base)->where('status', 'bounced')->count();
 
-        $daily = collect(range(6, 0))->reverse()->map(function ($daysAgo) use ($userId) {
-            $day = now()->subDays($daysAgo)->toDateString();
+        // Daily analytics (last 7 days)
+        $daily = collect(range(6, 0))->map(function ($daysAgo) use ($userId) {
+            $date = now()->subDays($daysAgo);
 
             return [
-                'label' => now()->subDays($daysAgo)->format('M d'),
-                'sent' => EmailLog::where('user_id', $userId)->whereDate('created_at', $day)->count(),
-                'opens' => EmailLog::where('user_id', $userId)->where('opened', true)->whereDate('created_at', $day)->count(),
-                'clicks' => EmailLog::where('user_id', $userId)->where('clicked', true)->whereDate('created_at', $day)->count(),
-                'bounces' => EmailLog::where('user_id', $userId)->where('status', 'bounced')->whereDate('created_at', $day)->count(),
+                'label' => $date->format('M d'),
+                'sent' => EmailLog::where('user_id', $userId)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'opens' => EmailLog::where('user_id', $userId)
+                    ->where('opened', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'clicks' => EmailLog::where('user_id', $userId)
+                    ->where('clicked', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'bounces' => EmailLog::where('user_id', $userId)
+                    ->where('status', 'bounced')
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
             ];
         })->values();
 
@@ -65,8 +82,14 @@ class AnalyticsController extends Controller
                 'click_rate' => $sent > 0 ? round(($clicks / $sent) * 100, 2) : 0,
                 'bounce_rate' => $sent > 0 ? round(($bounces / $sent) * 100, 2) : 0,
             ],
+
             'recent_activity' => (clone $base)->latest()->limit(25)->get(),
-            'campaigns' => Campaign::where('user_id', $userId)->latest()->limit(20)->get(),
+
+            'campaigns' => Campaign::where('user_id', $userId)
+                ->latest()
+                ->limit(20)
+                ->get(),
+
             'dailySeries' => $daily,
         ];
     }

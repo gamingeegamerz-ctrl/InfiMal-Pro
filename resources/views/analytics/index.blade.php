@@ -7,6 +7,9 @@
     @endforeach
 </div>
 <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <h2 class="text-lg font-semibold">Recent email activity</h2>
+    <div class="mt-4 overflow-x-auto"><table class="min-w-full text-sm"><thead><tr class="text-left text-slate-500"><th class="py-2">Recipient</th><th>Status</th><th>Opened</th><th>Clicked</th></tr></thead><tbody>@forelse($recent_activity as $item)<tr class="border-t border-slate-200 dark:border-slate-800"><td class="py-3">{{ $item->recipient_email ?? $item->to_email }}</td><td>{{ $item->status }}</td><td>{{ $item->opened ? 'Yes' : 'No' }}</td><td>{{ $item->clicked ? 'Yes' : 'No' }}</td></tr>@empty<tr><td colspan="4" class="py-4 text-slate-500">No analytics yet.</td></tr>@endforelse</tbody></table></div>
+</div>
     <div class="flex items-center justify-between"><h2 class="text-lg font-semibold">Engagement chart</h2><p class="text-sm text-slate-500">Last 7 days</p></div>
     <canvas id="analyticsChart" class="mt-4 h-32"></canvas>
 </div>

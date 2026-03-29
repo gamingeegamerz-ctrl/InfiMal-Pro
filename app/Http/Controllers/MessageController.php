@@ -16,6 +16,7 @@ class MessageController extends Controller
     {
         $userId = Auth::id();
 
+        // MAIN SAFETY CHECK (KEPT)
         if (!Schema::hasTable('messages')) {
             return view('messages.index', [
                 'messages' => collect([]),
@@ -26,12 +27,17 @@ class MessageController extends Controller
             ]);
         }
 
-        $messages = DB::table('messages')->where('user_id', $userId)->latest()->paginate(15);
+        // USE ELOQUENT (CODEX) BUT KEEP MAIN DATA
+        $messages = Message::where('user_id', $userId)->latest()->paginate(15);
 
         return view('messages.index', [
             'messages' => $messages,
-            'totalMessages' => DB::table('messages')->where('user_id', $userId)->count(),
-            'unreadMessages' => DB::table('messages')->where('user_id', $userId)->where('is_read', false)->count(),
+            'totalMessages' => Message::where('user_id', $userId)->count(),
+            'unreadMessages' => Message::where('user_id', $userId)
+                ->where('is_read', false)
+                ->count(),
+
+            // MAIN EXTRA DATA (KEPT)
             'emailsSent' => DB::table('email_logs')->where('user_id', $userId)->count(),
             'queueStatus' => Schema::hasTable('jobs') ? 'Active' : 'Not configured',
         ]);
@@ -52,15 +58,17 @@ class MessageController extends Controller
         ]) + [
             'user_id' => Auth::id(),
             'type' => $request->input('type', 'email'),
-            'is_template' => true,
+            'is_template' => true, // MAIN FEATURE KEPT
         ]);
 
-        return redirect()->route('messages.index')->with('success', 'Message template saved.');
+        return redirect()->route('messages.index')
+            ->with('success', 'Message template saved.');
     }
 
     public function show(Message $message): View
     {
         $message = Message::where('user_id', Auth::id())->findOrFail($message->id);
+
         $message->update(['is_read' => true]);
 
         return view('messages.create', compact('message'));
@@ -70,6 +78,7 @@ class MessageController extends Controller
     {
         Message::where('user_id', Auth::id())->findOrFail($message->id)->delete();
 
-        return redirect()->route('messages.index')->with('success', 'Message deleted.');
+        return redirect()->route('messages.index')
+            ->with('success', 'Message deleted.');
     }
 }
