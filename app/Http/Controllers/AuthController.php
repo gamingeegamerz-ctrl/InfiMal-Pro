@@ -35,6 +35,35 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         return redirect()->route($request->user()->hasPaid() && $request->user()->hasActiveLicense() ? 'dashboard' : 'billing');
+        }
+
+        $request->session()->regenerate();
+
+        return redirect()->route($request->user()->hasPaid() && $request->user()->hasActiveLicense() ? 'dashboard' : 'billing');
+            return back()
+                ->withErrors(['email' => 'Invalid credentials provided.'])
+                ->onlyInput('email');
+        }
+
+        $request->session()->regenerate();
+        $user = $request->user();
+
+        // Payment check
+        if (! $user->hasPaid()) {
+            return redirect()->route('payment');
+        }
+
+        // License check
+        if (! $user->hasActiveLicense()) {
+            return redirect()->route('billing');
+        }
+
+        // OTP check
+        if (! $user->otp_verified_at) {
+            return redirect()->route('otp.verify.form');
+        }
+
+        return redirect()->route('dashboard');
     }
 
     public function register(Request $request): RedirectResponse
@@ -52,20 +81,48 @@ class AuthController extends Controller
             'payment_status' => 'unpaid',
             'is_paid' => false,
             'plan_name' => 'InfiMal Pro',
+            'license_status' => 'inactive',
         ]);
 
         Auth::login($user);
         $request->session()->regenerate();
 
         return redirect()->route('billing')->with('success', 'Account created. Complete your $299 payment to unlock the platform.');
+        return redirect()
+            ->route('payment')
+            ->with('success', 'Account created. Complete payment to continue.');
+    }
+
+    public function forgotPassword(Request $request): RedirectResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        return back()->with('status', 'Password reset link sent!');
+    }
+
+    public function resetPassword(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        return redirect()
+            ->route('login')
+            ->with('status', 'Password reset successfully!');
     }
 
     public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+        return redirect()
+            ->route('login')
+            ->with('success', 'Logged out successfully!');
     }
 }

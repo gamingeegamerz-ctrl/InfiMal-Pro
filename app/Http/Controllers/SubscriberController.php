@@ -2,134 +2,98 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Subscriber;
 use App\Models\MailingList;
+use App\Models\Subscriber;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\View\View;
 
 class SubscriberController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): View
     {
+        abort_if(! auth()->user()->hasPaid() || ! auth()->user()->hasActiveLicense(), 403, 'Access denied. Payment required.');
+
         $user = Auth::user();
-        
-        // Get user's mailing lists
-        $lists = MailingList::where('user_id', $user->id)
-            ->orderBy('name', 'asc')
-            ->get();
-        
-        // If no lists, create default ones
-        if ($lists->count() === 0) {
-            $this->createDefaultLists($user);
-            $lists = MailingList::where('user_id', $user->id)
-                ->orderBy('name', 'asc')
-                ->get();
+        $lists = MailingList::where('user_id', $user->id)->orderBy('name')->get();
+
+        if ($lists->isEmpty()) {
+            $this->createDefaultLists($user->id);
+            $lists = MailingList::where('user_id', $user->id)->orderBy('name')->get();
         }
-        
-        // Subscribers query with list relationship
-        $query = Subscriber::where('user_id', $user->id)
-            ->with('mailingList');
-            
-        // Apply filters
-        if ($request->filled('status') && $request->status != 'all') {
+
+        $query = Subscriber::where('user_id', $user->id)->with('mailingList');
+
+        if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
-        
-        if ($request->filled('list_id') && $request->list_id != 'all') {
-            $query->where('list_id', $request->list_id);
+
+        if ($request->filled('list_id') && $request->list_id !== 'all') {
+            $query->where('list_id', $request->integer('list_id'));
         }
-        
+
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('email', 'like', "%$search%")
-                  ->orWhere('first_name', 'like', "%$search%")
-                  ->orWhere('last_name', 'like', "%$search%");
+            $search = $request->string('search');
+            $query->where(function ($subQuery) use ($search): void {
+                $subQuery->where('email', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
             });
         }
-        
-        $subscribers = $query->orderBy('created_at', 'desc')->paginate(20);
-        
-        // Calculate statistics - handle zero case
-        $totalSubscribers = Subscriber::where('user_id', $user->id)->count();
-        $activeSubscribers = Subscriber::where('user_id', $user->id)
-            ->where('status', 'active')->count();
-        $unsubscribedSubscribers = Subscriber::where('user_id', $user->id)
-            ->where('status', 'unsubscribed')->count();
-        $bouncedSubscribers = Subscriber::where('user_id', $user->id)
-            ->where('status', 'bounced')->count();
-        $growth30Days = Subscriber::where('user_id', $user->id)
-            ->where('created_at', '>=', now()->subDays(30))
-            ->count();
-        
-        // Recent activities
-        $recentActivities = Subscriber::where('user_id', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->limit(5)
-            ->get()
-            ->map(function($sub) {
-                return [
-                    'message' => "New subscriber: {$sub->email}",
-                    'time' => $sub->created_at->diffForHumans()
-                ];
-            })
-            ->toArray();
-        
-        // Default stats
-        $avgOpenRate = 0;
-        $avgClickRate = 0;
-        
-        return view('subscribers.index', compact(
-            'subscribers',
-            'lists',
-            'totalSubscribers',
-            'activeSubscribers',
-            'unsubscribedSubscribers',
-            'bouncedSubscribers',
-            'growth30Days',
-            'recentActivities',
-            'avgOpenRate',
-            'avgClickRate'
-        ));
+
+        $subscribers = $query->latest()->paginate(20)->withQueryString();
+
+        return view('subscribers.index', [
+            'subscribers' => $subscribers,
+            'lists' => $lists,
+            'totalSubscribers' => Subscriber::where('user_id', $user->id)->count(),
+            'activeSubscribers' => Subscriber::where('user_id', $user->id)->where('status', 'active')->count(),
+            'unsubscribedSubscribers' => Subscriber::where('user_id', $user->id)->where('status', 'unsubscribed')->count(),
+            'bouncedSubscribers' => Subscriber::where('user_id', $user->id)->where('status', 'bounced')->count(),
+            'growth30Days' => Subscriber::where('user_id', $user->id)->where('created_at', '>=', now()->subDays(30))->count(),
+            'recentActivities' => [],
+            'avgOpenRate' => 0,
+            'avgClickRate' => 0,
+        ]);
     }
-    
-    private function createDefaultLists($user)
+
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
-        $defaultLists = [
-            ['name' => 'Default List', 'description' => 'Default mailing list'],
-            ['name' => 'Newsletter', 'description' => 'Newsletter subscribers'],
-            ['name' => 'Customers', 'description' => 'Customer list'],
-        ];
-        
-        foreach($defaultLists as $listData) {
-            MailingList::create([
-                'user_id' => $user->id,
-                'name' => $listData['name'],
-                'slug' => strtolower(str_replace(' ', '-', $listData['name'])) . '-' . time(),
-                'description' => $listData['description'],
-                'is_public' => false,
-                'is_default' => ($listData['name'] === 'Default List')
-            ]);
-        }
-    }
-    
-    public function store(Request $request)
-    {
+        abort_if(! auth()->user()->hasPaid() || ! auth()->user()->hasActiveLicense(), 403, 'Access denied. Payment required.');
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|unique:subscribers,email,NULL,id,user_id,' . Auth::id(),
             'first_name' => 'nullable|string|max:100',
             'last_name' => 'nullable|string|max:100',
             'status' => 'required|in:active,unsubscribed,bounced',
-            'list_id' => 'required|exists:mailing_lists,id'
+            'list_id' => 'required|exists:mailing_lists,id',
         ]);
-        
+
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'errors' => $validator->errors()], 422)
+                : back()->withErrors($validator)->withInput();
         }
+
+        $list = MailingList::where('id', $request->list_id)->where('user_id', Auth::id())->firstOrFail();
+
+        Subscriber::create([
+            'user_id' => Auth::id(),
+            'list_id' => $list->id,
+            'email' => $request->email,
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'status' => $request->status,
+            'source' => 'manual',
+            'subscribed_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Subscriber added successfully.']);
         
         try {
             // Verify list belongs to user
@@ -155,10 +119,14 @@ class SubscriberController extends Controller
                 'subscribed_at' => now()
             ]);
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Subscriber added to ' . $list->name . ' successfully!'
-            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Subscriber added to ' . $list->name . ' successfully!'
+                ]);
+            }
+
+            return redirect()->route('subscribers.index')->with('success', 'Subscriber added to ' . $list->name . ' successfully!');
             
         } catch (\Exception $e) {
             return response()->json([
@@ -166,10 +134,18 @@ class SubscriberController extends Controller
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
+
+        return redirect()->route('subscribers.index')->with('success', 'Subscriber added successfully.');
     }
-    
-    public function destroy($id)
+
+    public function destroy($id): RedirectResponse|JsonResponse
     {
+        $subscriber = Subscriber::where('user_id', Auth::id())->findOrFail($id);
+        $subscriber->delete();
+
+        return request()->expectsJson()
+            ? response()->json(['success' => true, 'message' => 'Subscriber deleted.'])
+            : redirect()->route('subscribers.index')->with('success', 'Subscriber deleted.');
         try {
             $subscriber = Subscriber::where('user_id', Auth::id())
                 ->where('id', $id)
@@ -177,10 +153,14 @@ class SubscriberController extends Controller
             
             $subscriber->delete();
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Subscriber deleted!'
-            ]);
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Subscriber deleted!'
+                ]);
+            }
+
+            return redirect()->route('subscribers.index')->with('success', 'Subscriber deleted successfully.');
             
         } catch (\Exception $e) {
             return response()->json([
@@ -189,44 +169,44 @@ class SubscriberController extends Controller
             ], 500);
         }
     }
-    
-    public function edit($id)
+
+    public function edit($id): JsonResponse
     {
-        try {
-            $subscriber = Subscriber::where('user_id', Auth::id())
-                ->where('id', $id)
-                ->with('mailingList')
-                ->firstOrFail();
-            
-            return response()->json([
-                'success' => true,
-                'subscriber' => $subscriber
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Subscriber not found'
-            ], 404);
-        }
+        $subscriber = Subscriber::where('user_id', Auth::id())->where('id', $id)->with('mailingList')->firstOrFail();
+        return response()->json(['success' => true, 'subscriber' => $subscriber]);
     }
-    
-    public function update(Request $request, $id)
+
+    public function update(Request $request, $id): RedirectResponse|JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|unique:subscribers,email,' . $id . ',id,user_id,' . Auth::id(),
             'first_name' => 'nullable|string|max:100',
             'last_name' => 'nullable|string|max:100',
             'status' => 'required|in:active,unsubscribed,bounced',
-            'list_id' => 'required|exists:mailing_lists,id'
+            'list_id' => 'required|exists:mailing_lists,id',
         ]);
-        
+
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'errors' => $validator->errors()], 422)
+                : back()->withErrors($validator)->withInput();
         }
+
+        $subscriber = Subscriber::where('user_id', Auth::id())->findOrFail($id);
+        MailingList::where('user_id', Auth::id())->findOrFail($request->list_id);
+
+        $subscriber->update($request->only('email', 'first_name', 'last_name', 'status', 'list_id'));
+
+        return $request->expectsJson()
+            ? response()->json(['success' => true, 'message' => 'Subscriber updated.'])
+            : redirect()->route('subscribers.index')->with('success', 'Subscriber updated.');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $query = Subscriber::where('user_id', Auth::id())->with('mailingList');
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
         
         try {
             $subscriber = Subscriber::where('user_id', Auth::id())
@@ -253,10 +233,14 @@ class SubscriberController extends Controller
                 'list_id' => $request->list_id
             ]);
             
-            return response()->json([
-                'success' => true,
-                'message' => 'Subscriber updated!'
-            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Subscriber updated!'
+                ]);
+            }
+
+            return redirect()->route('subscribers.index')->with('success', 'Subscriber updated successfully.');
             
         } catch (\Exception $e) {
             return response()->json([
@@ -264,61 +248,95 @@ class SubscriberController extends Controller
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
-    }
-    
-    public function export(Request $request)
-    {
-        try {
-            $user = Auth::user();
-            $query = Subscriber::where('user_id', $user->id)
-                ->with('mailingList');
-            
-            if ($request->filled('status') && $request->status != 'all') {
-                $query->where('status', $request->status);
-            }
-            
-            if ($request->filled('list_id') && $request->list_id != 'all') {
-                $query->where('list_id', $request->list_id);
-            }
-            
-            $subscribers = $query->get();
-            
-            $filename = 'subscribers_' . date('Y-m-d') . '.csv';
-            $headers = [
-                'Content-Type' => 'text/csv',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            ];
-            
-            $callback = function() use ($subscribers) {
-                $file = fopen('php://output', 'w');
-                
-                // Header
-                fputcsv($file, ['Email', 'First Name', 'Last Name', 'Status', 'List', 'Subscribed Date']);
-                
-                // Data
-                foreach ($subscribers as $subscriber) {
-                    fputcsv($file, [
-                        $subscriber->email,
-                        $subscriber->first_name ?? '',
-                        $subscriber->last_name ?? '',
-                        ucfirst($subscriber->status),
-                        $subscriber->mailingList->name ?? 'No List',
-                        $subscriber->created_at->format('Y-m-d H:i:s')
-                    ]);
-                }
-                
-                fclose($file);
-            };
-            
-            return response()->stream($callback, 200, $headers);
-            
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Export failed: ' . $e->getMessage());
+        if ($request->filled('list_id') && $request->list_id !== 'all') {
+            $query->where('list_id', $request->integer('list_id'));
         }
+        $subscribers = $query->get();
+
+        return response()->stream(function () use ($subscribers): void {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['Email', 'First Name', 'Last Name', 'Status', 'List', 'Subscribed Date']);
+            foreach ($subscribers as $subscriber) {
+                fputcsv($file, [
+                    $subscriber->email,
+                    $subscriber->first_name,
+                    $subscriber->last_name,
+                    $subscriber->status,
+                    $subscriber->mailingList?->name,
+                    optional($subscriber->subscribed_at)->toDateTimeString(),
+                ]);
+            }
+            fclose($file);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="subscribers_'.now()->format('Y-m-d').'.csv"',
+        ]);
     }
-    
-    public function import(Request $request)
+
+    public function import(Request $request): RedirectResponse|JsonResponse
     {
+        $validated = $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+            'list_id' => 'required|exists:mailing_lists,id',
+        ]);
+
+        MailingList::where('id', $validated['list_id'])->where('user_id', Auth::id())->firstOrFail();
+
+        $rows = array_map('str_getcsv', file($request->file('file')->getRealPath()));
+        if (! empty($rows)) {
+            array_shift($rows);
+        }
+
+        $imported = 0;
+        $skipped = 0;
+        foreach ($rows as $row) {
+            $email = trim((string) ($row[0] ?? ''));
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $skipped++;
+                continue;
+            }
+
+            $exists = Subscriber::where('user_id', Auth::id())->where('email', $email)->exists();
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            Subscriber::create([
+                'user_id' => Auth::id(),
+                'list_id' => $validated['list_id'],
+                'email' => $email,
+                'first_name' => trim((string) ($row[1] ?? '')) ?: null,
+                'last_name' => trim((string) ($row[2] ?? '')) ?: null,
+                'status' => 'active',
+                'source' => 'csv_import',
+                'subscribed_at' => now(),
+            ]);
+            $imported++;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'imported' => $imported, 'skipped' => $skipped, 'errors' => 0]);
+        }
+
+        return redirect()->route('subscribers.index')->with('success', "Imported {$imported} subscribers. {$skipped} skipped.");
+    }
+
+    private function createDefaultLists(int $userId): void
+    {
+        foreach ([
+            ['name' => 'Default List', 'description' => 'Primary audience list', 'is_default' => true],
+            ['name' => 'Newsletter', 'description' => 'Newsletter subscribers', 'is_default' => false],
+            ['name' => 'Customers', 'description' => 'Customer audience', 'is_default' => false],
+        ] as $listData) {
+            MailingList::create([
+                'user_id' => $userId,
+                'name' => $listData['name'],
+                'slug' => str($listData['name'])->slug() . '-' . now()->timestamp,
+                'description' => $listData['description'],
+                'is_public' => false,
+                'is_default' => $listData['is_default'],
+            ]);
         try {
             $request->validate([
                 'file' => 'required|file|mimes:csv,txt',
@@ -368,13 +386,17 @@ class SubscriberController extends Controller
                 }
             }
             
-            return response()->json([
-                'success' => true,
-                'message' => "Imported {$imported} subscribers successfully. {$skipped} skipped.",
-                'imported' => $imported,
-                'skipped' => $skipped,
-                'errors' => 0
-            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Imported {$imported} subscribers successfully. {$skipped} skipped.",
+                    'imported' => $imported,
+                    'skipped' => $skipped,
+                    'errors' => 0
+                ]);
+            }
+
+            return redirect()->route('subscribers.index')->with('success', "Imported {$imported} subscribers successfully. {$skipped} skipped.");
             
         } catch (\Exception $e) {
             return response()->json([

@@ -39,10 +39,40 @@ class AnalyticsController extends Controller
     {
         $userId = Auth::id();
         $base = EmailLog::where('user_id', $userId);
+
+        $base = EmailLog::where('user_id', $userId);
+
         $sent = (clone $base)->count();
         $opens = (clone $base)->where('opened', true)->count();
         $clicks = (clone $base)->where('clicked', true)->count();
         $bounces = (clone $base)->where('status', 'bounced')->count();
+
+        // Daily analytics (last 7 days)
+        $daily = collect(range(6, 0))->map(function ($daysAgo) use ($userId) {
+            $date = now()->subDays($daysAgo);
+
+            return [
+                'label' => $date->format('M d'),
+                'sent' => EmailLog::where('user_id', $userId)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'opens' => EmailLog::where('user_id', $userId)
+                    ->where('opened', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'clicks' => EmailLog::where('user_id', $userId)
+                    ->where('clicked', true)
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+
+                'bounces' => EmailLog::where('user_id', $userId)
+                    ->where('status', 'bounced')
+                    ->whereDate('created_at', $date->toDateString())
+                    ->count(),
+            ];
+        })->values();
 
         return [
             'overview' => [
@@ -55,6 +85,15 @@ class AnalyticsController extends Controller
             ],
             'recent_activity' => (clone $base)->latest()->limit(25)->get(),
             'campaigns' => Campaign::where('user_id', $userId)->latest()->limit(20)->get(),
+
+            'recent_activity' => (clone $base)->latest()->limit(25)->get(),
+
+            'campaigns' => Campaign::where('user_id', $userId)
+                ->latest()
+                ->limit(20)
+                ->get(),
+
+            'dailySeries' => $daily,
         ];
     }
 }

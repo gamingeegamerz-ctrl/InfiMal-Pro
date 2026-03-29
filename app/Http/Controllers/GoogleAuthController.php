@@ -2,70 +2,52 @@
 
 namespace App\Http\Controllers;
 
-use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
-    /**
-     * Redirect user to Google
-     */
     public function redirect()
     {
         return Socialite::driver('google')->redirect();
     }
 
-    /**
-     * Handle Google callback
-     */
     public function callback()
     {
         try {
             $googleUser = Socialite::driver('google')->user();
 
-            // ?? Find existing user by email
-            $user = User::where('email', $googleUser->getEmail())->first();
-
-            if (!$user) {
-                // ?? Create new user
-                $user = User::create([
-                    'name'       => $googleUser->getName(),
-                    'email'      => $googleUser->getEmail(),
-                    'google_id'  => $googleUser->getId(),
-                    'password'   => bcrypt(Str::random(16)),
-                    // IMPORTANT DEFAULTS
+            $user = User::firstOrCreate(
+                ['email' => $googleUser->getEmail()],
+                [
+                    'name' => $googleUser->getName() ?: 'Google User',
+                    'google_id' => $googleUser->getId(),
+                    'password' => Hash::make(bin2hex(random_bytes(32))),
                     'payment_status' => 'unpaid',
-                    'license_key'    => null,
-                ]);
-            } else {
-                // ?? Update Google ID if missing
-                if (!$user->google_id) {
-                    $user->update([
-                        'google_id' => $googleUser->getId()
-                    ]);
-                }
+                    'is_paid' => false,
+                    'license_status' => 'inactive',
+                ]
+            );
+
+            if (!$user->google_id) {
+                $user->update(['google_id' => $googleUser->getId()]);
             }
 
-            // ?? Login user
             Auth::login($user, true);
 
-            // ================================
-            // ?? NO PAYMENT ? NO DASHBOARD
-            // ================================
             if (!$user->hasPaid()) {
-                return redirect()->route('payment')
-                    ->with('info', 'Please complete payment to access dashboard.');
+                return redirect()->route('payment')->with('info', 'Please complete payment to access your account.');
             }
 
-            // ? Paid user ? Dashboard
-            return redirect()->route('dashboard')
-                ->with('success', 'Welcome ' . $user->name . '!');
+            if (!$user->otp_verified_at) {
+                return redirect()->route('otp.verify.form');
+            }
 
-        } catch (\Exception $e) {
-            return redirect()->route('login')
-                ->with('error', 'Google login failed. Please try again.');
+            return redirect()->route('dashboard');
+        } catch (\Throwable) {
+            return redirect()->route('login')->with('error', 'Google login failed.');
         }
     }
 }

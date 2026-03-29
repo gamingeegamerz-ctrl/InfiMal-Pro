@@ -1,6 +1,10 @@
 @extends('layouts.saas')
 @section('title', 'SMTP Settings · InfiMal')
 @section('content')
+<div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">SMTP settings</h1><p class="text-sm text-slate-500">Credentials are encrypted, user-isolated, and used by the queue worker for delivery.</p></div></div>
+<div class="grid gap-4 md:grid-cols-4">@foreach(['Configured'=>$totalSmtp,'Active'=>$activeSmtp,'Sent today'=>$usageStats['sent_today'],'Success rate'=>$usageStats['success_rate'].'%'] as $label=>$value)<div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><p class="text-sm text-slate-500">{{ $label }}</p><p class="mt-2 text-3xl font-bold">{{ $value }}</p></div>@endforeach</div>
+<div class="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div class="space-y-3">@forelse($smtpSettings as $smtp)<div class="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><div class="flex items-center justify-between gap-4"><div><p class="font-semibold">{{ $smtp->name ?? $smtp->host }}</p><p class="text-sm text-slate-500">{{ $smtp->host }}:{{ $smtp->port }} · {{ $smtp->username }}</p></div><div class="flex flex-col items-end gap-2"><span class="text-xs {{ $smtp->is_default ? 'text-blue-600' : 'text-slate-500' }}">{{ $smtp->is_default ? 'Default' : 'Secondary' }}</span><button class="rounded-lg border border-slate-300 px-3 py-1 text-xs dark:border-slate-700" onclick="testSmtp({{ $smtp->id }})">Test connection</button></div></div></div>@empty<p class="text-slate-500">No SMTP accounts configured.</p>@endforelse</div><p id="smtp-test-status" class="mt-4 text-sm text-slate-500"></p></div>
 <div class="flex items-center justify-between"><div><h1 class="text-2xl font-bold">SMTP settings</h1><p class="text-sm text-slate-500">Credentials are encrypted and isolated per user.</p></div></div>
 <div class="grid gap-4 md:grid-cols-4">@foreach(['Configured'=>$totalSmtp,'Active'=>$activeSmtp,'Sent today'=>$usageStats['sent_today'],'Success rate'=>$usageStats['success_rate'].'%'] as $label=>$value)<div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><p class="text-sm text-slate-500">{{ $label }}</p><p class="mt-2 text-3xl font-bold">{{ $value }}</p></div>@endforeach</div>
 <div class="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -20,4 +24,21 @@
         </form>
     </div>
 </div>
+<script>
+async function testSmtp(id) {
+    const status = document.getElementById('smtp-test-status');
+    status.textContent = 'Testing SMTP connection...';
+    const response = await fetch(`{{ url('/smtp') }}/${id}/test`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({email: '{{ auth()->user()->email }}'})
+    });
+    const result = await response.json();
+    status.textContent = result.message;
+}
+</script>
 @endsection

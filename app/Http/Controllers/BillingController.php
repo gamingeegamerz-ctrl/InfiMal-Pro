@@ -21,6 +21,8 @@ class BillingController extends Controller
             'payments' => $payments,
             'planName' => 'InfiMal Pro',
             'price' => 299.00,
+            'paypalClientId' => config('services.paypal.client_id'),
+            'paypalMode' => config('services.paypal.mode', 'sandbox'),
             'features' => [
                 'Unlimited email sending through your own SMTP accounts',
                 'Campaign management and audience segmentation',

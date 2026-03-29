@@ -21,7 +21,7 @@ class SendCampaignEmailJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $emailJobId;
-    public $tries = 3;
+    public int $tries = 3;
 
     public function __construct(int $emailJobId)
     {
@@ -31,7 +31,7 @@ class SendCampaignEmailJob implements ShouldQueue
     public function handle(SendEngineService $engine): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
-        if (!$emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
+        if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
             return;
         }
 
@@ -42,32 +42,29 @@ class SendCampaignEmailJob implements ShouldQueue
             ->orderByDesc('is_default')
             ->first();
 
-        if (!$smtp) {
+        if (! $smtp) {
             $emailJob->update(['status' => 'failed', 'error_message' => 'No active SMTP configured']);
-            $this->release(120);
             return;
         }
 
         $quotaCheck = $engine->canSendNow($smtp);
-        if (!$quotaCheck['allowed']) {
+        if (! $quotaCheck['allowed']) {
             $emailJob->update(['status' => 'queued']);
             $this->release($quotaCheck['delay']);
             return;
         }
 
-        $htmlContent = $emailJob->html ?? $emailJob->body;
-        if ($emailJob->campaign_id) {
-            $trackingSeed = $engine->createLog([
-                'user_id' => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id' => $smtp->id,
-                'recipient_email' => $emailJob->to_email,
-                'to_email' => $emailJob->to_email,
-                'status' => 'pending',
-            ]);
+        $log = $engine->createLog([
+            'user_id' => $emailJob->user_id,
+            'campaign_id' => $emailJob->campaign_id,
+            'smtp_id' => $smtp->id,
+            'recipient_email' => $emailJob->to_email,
+            'to_email' => $emailJob->to_email,
+            'status' => 'pending',
+            'message_id' => $emailJob->id . '-' . now()->timestamp,
+        ]);
 
-            $htmlContent = TrackingController::processEmailContent($htmlContent, $trackingSeed->id);
-        }
+        $htmlContent = TrackingController::processEmailContent($emailJob->html ?? $emailJob->body, $log->id);
 
         Config::set('mail.default', 'smtp');
         Config::set('mail.mailers.smtp.host', $smtp->host);
@@ -92,15 +89,7 @@ class SendCampaignEmailJob implements ShouldQueue
                 'sent_at' => now(),
             ]);
 
-            $engine->createLog([
-                'user_id' => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id' => $smtp->id,
-                'recipient_email' => $emailJob->to_email,
-                'to_email' => $emailJob->to_email,
-                'status' => 'sent',
-                'message_id' => $emailJob->id . '-' . now()->timestamp,
-            ]);
+            $log->update(['status' => 'sent']);
 
             if ($emailJob->campaign_id) {
                 Campaign::where('id', $emailJob->campaign_id)
@@ -109,19 +98,15 @@ class SendCampaignEmailJob implements ShouldQueue
             }
         } catch (Throwable $e) {
             $emailJob->increment('retry_count');
+            $status = $emailJob->retry_count >= $this->tries ? 'bounced' : 'queued';
             $emailJob->update([
-                'status' => $emailJob->retry_count >= $this->tries ? 'bounced' : 'queued',
+                'status' => $status,
                 'failed_at' => now(),
                 'error_message' => substr($e->getMessage(), 0, 1000),
             ]);
 
-            $engine->createLog([
-                'user_id' => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id' => $smtp->id,
-                'recipient_email' => $emailJob->to_email,
-                'to_email' => $emailJob->to_email,
-                'status' => $emailJob->retry_count >= $this->tries ? 'bounced' : 'failed',
+            $log->update([
+                'status' => $status === 'bounced' ? 'bounced' : 'failed',
                 'error_message' => substr($e->getMessage(), 0, 1000),
             ]);
 

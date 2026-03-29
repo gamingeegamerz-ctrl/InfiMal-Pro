@@ -33,11 +33,16 @@ class User extends Authenticatable
         'license_status',
         'license_expires_at',
         'is_admin',
+        'google_id',
+        'otp_code',
+        'otp_expires_at',
+        'otp_verified_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'otp_code',
     ];
 
     protected $casts = [
@@ -63,7 +68,15 @@ class User extends Authenticatable
 
     public function mailingLists(): HasMany
     {
+        return $this->subscriberLists();
+    }
+
+    public function subscriberLists(): HasMany
+    {
         return $this->lists();
+    public function mailingLists(): HasMany
+    {
+        return $this->subscriberLists();
     }
 
     public function subscriberLists(): HasMany
@@ -94,15 +107,49 @@ class User extends Authenticatable
     public function activeLicense(): HasOne
     {
         return $this->hasOne(License::class, 'user_id')->where('status', 'active');
+        return $this->hasOne(License::class, 'user_id')->where(function($query) {
+            $query->where('status', 'active')->orWhere('is_active', true);
+        });
     }
 
     public function hasPaid(): bool
     {
         return $this->is_paid || (string) $this->payment_status === 'paid' || ! is_null($this->paid_at);
+        return (bool) ($this->is_paid || (string) $this->payment_status === 'paid' || !is_null($this->paid_at));
     }
 
     public function hasActiveLicense(): bool
     {
         return $this->activeLicense()->exists() || (! empty($this->license_key) && ($this->license_status === 'active' || $this->license_status === null));
+        if (! empty($this->license_key)) {
+            return $this->licenses()
+                ->where('license_key', $this->license_key)
+                ->where('status', 'active')
+                ->where(function ($query) {
+                    $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->exists();
+        }
+
+        return $this->activeLicense()
+            ->where(function ($query) {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+        return $this->activeLicense()->exists() || (! empty($this->license_key) && ($this->license_status === 'active' || $this->license_status === null));
+        return $this->activeLicense()->exists()
+            || ((string) $this->license_status === 'active' && !empty($this->license_key));
+    }
+
+    public function otpRequired(): bool
+    {
+        return !is_null($this->otp_code) || !is_null($this->otp_expires_at);
+    }
+
+    public function hasPaidAccess(): bool
+    {
+        return $this->hasPaid()
+            && $this->hasActiveLicense()
+            && (!$this->otpRequired() || !is_null($this->otp_verified_at));
     }
 }
