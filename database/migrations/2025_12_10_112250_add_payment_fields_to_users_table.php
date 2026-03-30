@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'payment_status')) {
                 $table->enum('payment_status', ['unpaid', 'paid', 'expired'])->default('unpaid')->after('workspace_id');
@@ -29,6 +33,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $columns = ['payment_status', 'payment_date', 'payment_amount', 'transaction_id', 'plan_expiry_date'];
             foreach ($columns as $column) {

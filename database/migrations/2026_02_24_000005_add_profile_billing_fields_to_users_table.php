@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'payment_status')) {
                 $table->string('payment_status')->default('free')->after('password');

@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('email_logs')) {
+            return;
+        }
+
         Schema::table('email_logs', function (Blueprint $table) {
             if (!Schema::hasColumn('email_logs', 'opened')) {
                 $table->boolean('opened')->default(false)->after('status');

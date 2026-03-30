@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('subscribers')) {
+            return;
+        }
+
         Schema::table('subscribers', function (Blueprint $table) {
-            //
+            // Intentionally empty migration kept for timestamp compatibility.
         });
     }
 
@@ -21,8 +25,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('subscribers')) {
+            return;
+        }
+
         Schema::table('subscribers', function (Blueprint $table) {
-            //
+            // Intentionally empty migration kept for timestamp compatibility.
         });
     }
 };

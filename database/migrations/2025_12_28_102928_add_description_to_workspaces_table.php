@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('workspaces')) {
+            return;
+        }
+
         Schema::table('workspaces', function (Blueprint $table) {
             if (!Schema::hasColumn('workspaces', 'description')) {
                 $table->text('description')->nullable()->after('slug');
@@ -17,8 +21,14 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('workspaces')) {
+            return;
+        }
+
         Schema::table('workspaces', function (Blueprint $table) {
-            $table->dropColumn('description');
+            if (Schema::hasColumn('workspaces', 'description')) {
+                $table->dropColumn('description');
+            }
         });
     }
 };

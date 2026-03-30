@@ -8,20 +8,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'google_id')) {
-                $table->string('google_id')->nullable()->after('email');
-            }
-            if (!Schema::hasColumn('users', 'otp_code')) {
-                $table->string('otp_code')->nullable()->after('license_status');
-            }
-            if (!Schema::hasColumn('users', 'otp_expires_at')) {
-                $table->timestamp('otp_expires_at')->nullable()->after('otp_code');
-            }
-            if (!Schema::hasColumn('users', 'otp_verified_at')) {
-                $table->timestamp('otp_verified_at')->nullable()->after('otp_expires_at');
-            }
-        });
+        if (Schema::hasTable('users')) {
+            Schema::table('users', function (Blueprint $table) {
+                if (!Schema::hasColumn('users', 'google_id')) {
+                    $table->string('google_id')->nullable()->after('email');
+                }
+                if (!Schema::hasColumn('users', 'otp_code')) {
+                    $table->string('otp_code')->nullable()->after('license_status');
+                }
+                if (!Schema::hasColumn('users', 'otp_expires_at')) {
+                    $table->timestamp('otp_expires_at')->nullable()->after('otp_code');
+                }
+                if (!Schema::hasColumn('users', 'otp_verified_at')) {
+                    $table->timestamp('otp_verified_at')->nullable()->after('otp_expires_at');
+                }
+            });
+        }
 
         if (!Schema::hasTable('payments')) {
             Schema::create('payments', function (Blueprint $table) {
@@ -38,29 +40,31 @@ return new class extends Migration
             });
         }
 
-        Schema::table('email_logs', function (Blueprint $table) {
-            if (!Schema::hasColumn('email_logs', 'opened')) {
-                $table->boolean('opened')->default(false)->after('status');
-            }
-            if (!Schema::hasColumn('email_logs', 'clicked')) {
-                $table->boolean('clicked')->default(false)->after('opened');
-            }
-            if (!Schema::hasColumn('email_logs', 'opened_at')) {
-                $table->timestamp('opened_at')->nullable()->after('clicked');
-            }
-            if (!Schema::hasColumn('email_logs', 'clicked_at')) {
-                $table->timestamp('clicked_at')->nullable()->after('opened_at');
-            }
-            if (!Schema::hasColumn('email_logs', 'bounced_at')) {
-                $table->timestamp('bounced_at')->nullable()->after('clicked_at');
-            }
-            if (!Schema::hasColumn('email_logs', 'smtp_id')) {
-                $table->unsignedBigInteger('smtp_id')->nullable()->after('campaign_id');
-            }
-            if (!Schema::hasColumn('email_logs', 'recipient_email')) {
-                $table->string('recipient_email')->nullable()->after('to_email');
-            }
-        });
+        if (Schema::hasTable('email_logs')) {
+            Schema::table('email_logs', function (Blueprint $table) {
+                if (!Schema::hasColumn('email_logs', 'opened')) {
+                    $table->boolean('opened')->default(false)->after('status');
+                }
+                if (!Schema::hasColumn('email_logs', 'clicked')) {
+                    $table->boolean('clicked')->default(false)->after('opened');
+                }
+                if (!Schema::hasColumn('email_logs', 'opened_at')) {
+                    $table->timestamp('opened_at')->nullable()->after('clicked');
+                }
+                if (!Schema::hasColumn('email_logs', 'clicked_at')) {
+                    $table->timestamp('clicked_at')->nullable()->after('opened_at');
+                }
+                if (!Schema::hasColumn('email_logs', 'bounced_at')) {
+                    $table->timestamp('bounced_at')->nullable()->after('clicked_at');
+                }
+                if (!Schema::hasColumn('email_logs', 'smtp_id')) {
+                    $table->unsignedBigInteger('smtp_id')->nullable()->after('campaign_id');
+                }
+                if (!Schema::hasColumn('email_logs', 'recipient_email')) {
+                    $table->string('recipient_email')->nullable()->after('to_email');
+                }
+            });
+        }
     }
 
     public function down(): void
