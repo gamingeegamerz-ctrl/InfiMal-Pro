@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('list_subscriber')) {
+            return;
+        }
+
         Schema::table('list_subscriber', function (Blueprint $table) {
-            //
+            // Intentionally empty duplicate migration kept for compatibility.
         });
     }
 
@@ -21,8 +25,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('list_subscriber')) {
+            return;
+        }
+
         Schema::table('list_subscriber', function (Blueprint $table) {
-            //
+            // Intentionally empty duplicate migration kept for compatibility.
         });
     }
 };

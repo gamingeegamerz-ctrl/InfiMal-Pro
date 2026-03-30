@@ -60,11 +60,13 @@ return new class extends Migration
             }
         }
 
-        Schema::table('licenses', function (Blueprint $table): void {
-            if (! Schema::hasColumn('licenses', 'status')) {
-                $table->string('status')->default('active')->after('duration_days');
-            }
-        });
+        if (Schema::hasTable('licenses')) {
+            Schema::table('licenses', function (Blueprint $table): void {
+                if (! Schema::hasColumn('licenses', 'status')) {
+                    $table->string('status')->default('active')->after('duration_days');
+                }
+            });
+        }
     }
 
     public function down(): void

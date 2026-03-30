@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'plan_name')) {
                 $table->string('plan_name')->nullable()->after('payment_status');
@@ -25,7 +29,10 @@ return new class extends Migration
             ->update(['plan_name' => DB::raw("CASE WHEN payment_status='paid' THEN 'Lifetime' ELSE 'Free' END")]);
 
         if (Schema::hasColumn('users', 'payment_date') && Schema::hasColumn('users', 'paid_at')) {
-            DB::statement('UPDATE users SET paid_at = payment_date WHERE paid_at IS NULL AND payment_date IS NOT NULL');
+            DB::table('users')
+                ->whereNull('paid_at')
+                ->whereNotNull('payment_date')
+                ->update(['paid_at' => DB::raw('payment_date')]);
         }
     }
 

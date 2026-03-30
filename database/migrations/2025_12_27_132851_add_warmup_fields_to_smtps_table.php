@@ -11,10 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (!Schema::hasTable('smtps')) {
+            return;
+        }
+
         Schema::table('smtps', function (Blueprint $table) {
             // Warmup / hourly control
-            $table->integer('hourly_sent')->default(0)->after('sent_today');
-            $table->timestamp('last_hour_at')->nullable()->after('hourly_sent');
+            if (!Schema::hasColumn('smtps', 'hourly_sent')) {
+                $table->integer('hourly_sent')->default(0)->after('sent_today');
+            }
+
+            if (!Schema::hasColumn('smtps', 'last_hour_at')) {
+                $table->timestamp('last_hour_at')->nullable()->after('hourly_sent');
+            }
         });
     }
 
@@ -23,11 +32,18 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('smtps')) {
+            return;
+        }
+
         Schema::table('smtps', function (Blueprint $table) {
-            $table->dropColumn([
-                'hourly_sent',
-                'last_hour_at',
-            ]);
+            if (Schema::hasColumn('smtps', 'hourly_sent')) {
+                $table->dropColumn('hourly_sent');
+            }
+
+            if (Schema::hasColumn('smtps', 'last_hour_at')) {
+                $table->dropColumn('last_hour_at');
+            }
         });
     }
 };

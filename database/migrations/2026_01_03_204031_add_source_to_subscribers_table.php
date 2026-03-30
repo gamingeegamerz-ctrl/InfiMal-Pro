@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up()
     {
+        if (!Schema::hasTable('subscribers')) {
+            return;
+        }
+
         Schema::table('subscribers', function (Blueprint $table) {
             if (!Schema::hasColumn('subscribers', 'source')) {
                 $table->string('source')->nullable()->after('status');
@@ -23,8 +27,16 @@ return new class extends Migration
 
     public function down()
     {
+        if (!Schema::hasTable('subscribers')) {
+            return;
+        }
+
         Schema::table('subscribers', function (Blueprint $table) {
-            $table->dropColumn(['source', 'subscribed_at', 'unsubscribed_at']);
+            foreach (['source', 'subscribed_at', 'unsubscribed_at'] as $column) {
+                if (Schema::hasColumn('subscribers', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };

@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'license_status')) {
                 $table->string('license_status')->nullable()->after('email_verified_at');
@@ -29,14 +33,22 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('users')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn([
+            foreach ([
                 'license_status',
                 'license_key',
                 'license_expires_at',
                 'license_plan',
-                'is_admin'
-            ]);
+                'is_admin',
+            ] as $column) {
+                if (Schema::hasColumn('users', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
         });
     }
 };

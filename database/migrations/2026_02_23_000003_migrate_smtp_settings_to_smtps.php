@@ -10,6 +10,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('smtps')) {
+            return;
+        }
+
         Schema::table('smtps', function (Blueprint $table) {
             if (!Schema::hasColumn('smtps', 'name')) {
                 $table->string('name')->nullable()->after('user_id');
