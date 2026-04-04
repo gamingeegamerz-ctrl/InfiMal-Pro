@@ -1,0 +1,19 @@
+<?php
+
+namespace App\Services;
+
+use App\Jobs\SendOpsAlertJob;
+use Illuminate\Support\Facades\Log;
+
+class MonitoringService
+{
+    public function critical(string $event, array $context = []): void
+    {
+        Log::channel('alerts')->critical($event, $context);
+
+        if ((bool) config('infimal.alerts.enabled', true)) {
+            $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message);
+        }
+    }
+}
