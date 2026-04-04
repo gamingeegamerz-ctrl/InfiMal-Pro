@@ -52,6 +52,9 @@ class SendEmailJob implements ShouldQueue
         $emailLog = EmailLog::updateOrCreate(
             ['message_id' => $messageId],
             [
+        $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
+
+        $emailLog = EmailLog::create([
             'user_id' => $emailJob->user_id,
             'campaign_id' => $emailJob->campaign_id,
             'smtp_id' => $smtp->id,
@@ -61,6 +64,8 @@ class SendEmailJob implements ShouldQueue
             'status' => 'pending',
         ]
         );
+            'message_id' => $messageId,
+        ]);
 
         $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
 

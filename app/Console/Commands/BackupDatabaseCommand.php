@@ -105,4 +105,21 @@ class BackupDatabaseCommand extends Command
         $this->error("Unsupported database driver for backup: {$driver}");
         return self::FAILURE;
     }
+        $databasePath = config("database.connections.{$connection}.database");
+
+        if (! $databasePath || ! File::exists($databasePath)) {
+            $this->error('Database file not found for backup.');
+            return self::FAILURE;
+        }
+
+        $backupDir = storage_path('app/backups/database/'.now()->format('Y/m'));
+        File::ensureDirectoryExists($backupDir);
+
+        $backupFile = $backupDir.'/backup-'.now()->format('Y-m-d_His').'.sqlite';
+        File::copy($databasePath, $backupFile);
+
+        $this->info('Database backup created: '.$backupFile);
+
+        return self::SUCCESS;
+    }
 }

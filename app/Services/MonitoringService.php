@@ -25,5 +25,9 @@ class MonitoringService
 
         $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message)->onQueue('alerts');
+        if ((bool) config('infimal.alerts.enabled', true)) {
+            $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message);
+        }
     }
 }
