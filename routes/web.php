@@ -62,6 +62,14 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->name('billing.checkout');
+    Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->name('billing.webhook.paypal');
+    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
+    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
+
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
     Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
     Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->name('otp.verify.resend');
@@ -72,6 +80,7 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
 });
 
 Route::middleware(['auth', 'flow.state', 'paid.access'])->group(function (): void {
+Route::middleware(['auth', 'paid.access'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::resource('campaigns', CampaignController::class);
