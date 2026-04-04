@@ -31,6 +31,7 @@ class GoogleAuthController extends Controller
                     'license_status' => 'inactive',
                     'campaign_count' => 0,
                     'email_sent' => 0,
+            'onboarding_step' => 'payment_required',
                     'accepted_terms_at' => now(),
                 ]
             );

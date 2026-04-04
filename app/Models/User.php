@@ -41,6 +41,10 @@ class User extends Authenticatable
         'last_login_at',
         'campaign_count',
         'email_sent',
+        'otp_last_sent_at',
+        'otp_locked_until',
+        'otp_failed_attempts',
+        'onboarding_step',
     ];
 
     protected $hidden = [
@@ -59,8 +63,11 @@ class User extends Authenticatable
         'otp_verified_at' => 'datetime',
         'accepted_terms_at' => 'datetime',
         'last_login_at' => 'datetime',
+        'otp_locked_until' => 'datetime',
+        'otp_last_sent_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
+        'otp_failed_attempts' => 'integer',
     ];
 
     // =================== RELATIONSHIPS ===================

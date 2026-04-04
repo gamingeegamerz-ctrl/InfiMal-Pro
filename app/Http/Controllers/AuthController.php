@@ -66,6 +66,7 @@ class AuthController extends Controller
             'license_status' => 'inactive',
             'campaign_count' => 0,
             'email_sent' => 0,
+            'onboarding_step' => 'payment_required',
         ]);
 
         Auth::login($user);
