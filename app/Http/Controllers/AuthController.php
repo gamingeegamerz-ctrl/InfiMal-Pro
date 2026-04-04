@@ -35,17 +35,12 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $user = $request->user();
 
-        // Payment check
+        $user->forceFill(['last_login_at' => now()])->save();
+
         if (! $user->hasPaid()) {
             return redirect()->route('payment');
         }
 
-        // License check
-        if (! $user->hasActiveLicense()) {
-            return redirect()->route('billing');
-        }
-
-        // OTP check
         if (! $user->otp_verified_at) {
             return redirect()->route('otp.verify.form');
         }
@@ -69,6 +64,9 @@ class AuthController extends Controller
             'is_paid' => false,
             'plan_name' => 'InfiMal Pro',
             'license_status' => 'inactive',
+            'campaign_count' => 0,
+            'email_sent' => 0,
+            'onboarding_step' => 'payment_required',
         ]);
 
         Auth::login($user);
