@@ -6,6 +6,7 @@ use App\Jobs\SendOtpMailJob;
 use App\Models\License;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\MonitoringService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class PaymentController extends Controller
 {
     private const PRICE = '299.00';
     private const CURRENCY = 'USD';
+    private const PRODUCT = 'InfiMal Pro Lifetime';
     private const PRODUCT = 'InfiMal Pro Monthly';
     private const PRODUCT = 'InfiMal Pro';
     private const OTP_TTL_MINUTES = 15;
@@ -139,6 +141,19 @@ class PaymentController extends Controller
 
         return redirect()->route('otp.verify.form')->with('success', 'Payment completed. Verify OTP to activate your account.');
 
+        $capturePayload = $captureResponse->json();
+        abort_unless(data_get($capturePayload, 'status') === 'COMPLETED', Response::HTTP_UNPROCESSABLE_ENTITY, 'Payment capture is not completed.');
+
+        $captureAmount = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.amount.value', '');
+        $captureCurrency = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.amount.currency_code', '');
+        abort_unless($this->amountMatches($captureAmount) && $captureCurrency === self::CURRENCY, Response::HTTP_UNPROCESSABLE_ENTITY, 'Captured amount verification failed.');
+
+        $captureId = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.id', $orderId);
+
+        $this->finalizeSuccessfulPayment($user, $captureId, $capturePayload);
+
+        return redirect()->route('otp.verify.form')->with('success', 'Payment completed. Verify OTP to activate your account.');
+
         $captureAmount = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.amount.value', '');
         $captureCurrency = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.amount.currency_code', '');
         abort_unless($this->amountMatches($captureAmount) && $captureCurrency === self::CURRENCY, Response::HTTP_UNPROCESSABLE_ENTITY, 'Captured amount verification failed.');
@@ -173,6 +188,10 @@ class PaymentController extends Controller
         ]);
 
         if (! $this->verifyWebhookSignature($request)) {
+            $context = ['transmission_id' => $request->header('PAYPAL-TRANSMISSION-ID'), 'ip' => $request->ip()];
+            Log::channel('security')->warning('PayPal webhook signature validation failed.', $context);
+            app(MonitoringService::class)->critical('Webhook signature failure', $context);
+
             Log::channel('security')->warning('PayPal webhook signature validation failed.', [
                 'transmission_id' => $request->header('PAYPAL-TRANSMISSION-ID'),
             ]);
@@ -203,6 +222,129 @@ class PaymentController extends Controller
             Log::channel('webhooks')->info('Duplicate webhook ignored (idempotent).', ['capture_id' => $captureId]);
             return response('duplicate', Response::HTTP_OK);
         }
+
+        $order = $this->fetchOrder($orderId);
+        $userId = (int) data_get($order, 'purchase_units.0.custom_id');
+        $user = User::find($userId);
+
+        if (! $user) {
+            app(MonitoringService::class)->critical('Webhook user resolution failed', ['order_id' => $orderId, 'capture_id' => $captureId]);
+            return response('user not found', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->assertOrderIsValidForUser($order, $user);
+
+        $this->finalizeSuccessfulPayment($user, $captureId, [
+            'webhook' => $request->all(),
+            'verified_order' => $order,
+        ]);
+
+        Log::channel('payments')->info('PayPal webhook payment finalized.', [
+            'user_id' => $user->id,
+            'capture_id' => $captureId,
+        ]);
+
+        return response('ok', Response::HTTP_OK);
+    }
+
+    public function paypalWebhook(Request $request): Response
+    {
+        return $this->webhook($request);
+    }
+
+    public function showOtpForm(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user->hasPaid()) {
+            return redirect()->route('payment');
+        }
+
+        if ($user->otp_verified_at) {
+            return redirect()->route('dashboard');
+        }
+
+        if ($this->isOtpExpired($user)) {
+            $this->issueOtp($user->fresh(), true);
+        }
+
+        return redirect()->route('billing')->with('info', 'Enter the OTP sent to your email to activate access.');
+    }
+
+    public function resendOtp(Request $request): RedirectResponse
+    {
+        $user = $request->user()->fresh();
+
+        abort_unless($user->hasPaid(), Response::HTTP_FORBIDDEN, 'Payment required first.');
+
+        if ($user->otp_locked_until && now()->lt($user->otp_locked_until)) {
+            return back()->withErrors(['otp' => 'OTP is temporarily locked. Try again later.']);
+        }
+
+        if ($user->otp_last_sent_at && now()->diffInSeconds($user->otp_last_sent_at) < self::OTP_RESEND_COOLDOWN_SECONDS) {
+            return back()->withErrors(['otp' => 'Please wait before requesting a new OTP.']);
+        }
+
+        $this->issueOtp($user, true);
+
+        return back()->with('success', 'A new OTP has been sent to your email.');
+    }
+
+    public function verifyOtp(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'otp' => ['required', 'digits:6'],
+        ]);
+
+        $user = $request->user()->fresh();
+        $attemptKey = 'otp-attempt:'.$user->id.':'.$request->ip();
+
+        if ($user->otp_verified_at) {
+            return redirect()->route('dashboard')->with('success', 'Your account is already verified.');
+        }
+
+        if ($user->otp_locked_until && now()->lt($user->otp_locked_until)) {
+            return back()->withErrors(['otp' => 'Too many failed attempts. Try again later.']);
+        }
+
+        if (RateLimiter::tooManyAttempts($attemptKey, self::OTP_MAX_ATTEMPTS_PER_MINUTE)) {
+            return back()->withErrors(['otp' => 'Rate limit exceeded. Wait a minute and retry.']);
+        }
+
+        RateLimiter::hit($attemptKey, 60);
+
+        if (! $user->otp_code || ! $user->otp_expires_at) {
+            return back()->withErrors(['otp' => 'OTP is missing. Please resend OTP.']);
+        }
+
+        if ($this->isOtpExpired($user)) {
+            return back()->withErrors(['otp' => 'OTP expired. Please request a new OTP.']);
+        }
+
+        if (! Hash::check($validated['otp'], $user->otp_code)) {
+            $failedAttempts = (int) $user->otp_failed_attempts + 1;
+            $user->forceFill([
+                'otp_failed_attempts' => $failedAttempts,
+                'otp_locked_until' => $failedAttempts >= self::OTP_MAX_FAILED_ATTEMPTS ? now()->addMinutes(self::OTP_LOCK_MINUTES) : null,
+            ])->save();
+
+            Log::channel('security')->warning('OTP verification failed', ['user_id' => $user->id, 'ip' => $request->ip(), 'failed_attempts' => $failedAttempts]);
+
+            return back()->withErrors(['otp' => 'Invalid OTP provided.']);
+        }
+
+        $user->forceFill([
+            'otp_verified_at' => now(),
+            'otp_code' => null,
+            'otp_expires_at' => null,
+            'otp_failed_attempts' => 0,
+            'otp_locked_until' => null,
+            'onboarding_step' => 'active',
+        ])->save();
+
+        $request->session()->put('onboarding_step', 'active');
+        RateLimiter::clear($attemptKey);
+
 
         $order = $this->fetchOrder($orderId);
         $userId = (int) data_get($order, 'purchase_units.0.custom_id');
@@ -530,6 +672,17 @@ class PaymentController extends Controller
                     'status' => 'active',
                     'is_active' => true,
                     'is_lifetime' => true,
+                    'expires_at' => null,
+                ]
+            );
+
+            $license->forceFill([
+                'plan_type' => self::PRODUCT,
+                'duration_days' => 0,
+                'status' => 'active',
+                'is_active' => true,
+                'is_lifetime' => true,
+                'expires_at' => null,
                 ]
             );
 
@@ -553,6 +706,13 @@ class PaymentController extends Controller
                 'otp_verified_at' => null,
                 'onboarding_step' => 'otp_verification_required',
             ])->save();
+
+            $this->issueOtp($user->fresh(), true);
+        });
+
+        session()->put('onboarding_step', 'otp_verification_required');
+
+        Log::channel('payments')->info('Payment finalized', ['user_id' => $user->id, 'payment_id' => $paymentId]);
 
             $this->issueOtp($user->fresh(), true);
         });
@@ -612,6 +772,16 @@ class PaymentController extends Controller
         $customId = (string) data_get($order, 'purchase_units.0.custom_id');
         $amount = (string) data_get($order, 'purchase_units.0.amount.value', '');
         $currency = (string) data_get($order, 'purchase_units.0.amount.currency_code', '');
+
+        abort_unless(in_array($status, ['APPROVED', 'COMPLETED'], true), Response::HTTP_UNPROCESSABLE_ENTITY, 'PayPal order status is invalid.');
+        abort_unless($customId === (string) $user->id, Response::HTTP_FORBIDDEN, 'Payment ownership mismatch.');
+        abort_unless($currency === self::CURRENCY, Response::HTTP_UNPROCESSABLE_ENTITY, 'Currency mismatch.');
+        abort_unless($this->amountMatches($amount), Response::HTTP_UNPROCESSABLE_ENTITY, 'Amount mismatch.');
+    }
+
+    private function amountMatches(string $amount): bool
+    {
+        return number_format((float) $amount, 2, '.', '') === number_format((float) self::PRICE, 2, '.', '');
 
         abort_unless(in_array($status, ['APPROVED', 'COMPLETED'], true), Response::HTTP_UNPROCESSABLE_ENTITY, 'PayPal order status is invalid.');
         abort_unless($customId === (string) $user->id, Response::HTTP_FORBIDDEN, 'Payment ownership mismatch.');
@@ -707,6 +877,8 @@ class PaymentController extends Controller
             'verification_status' => $status,
             'transmission_id' => $request->header('PAYPAL-TRANSMISSION-ID'),
         ]);
+
+        return $verificationResponse->successful() && $status === 'SUCCESS';
 
         return $verificationResponse->successful() && $status === 'SUCCESS';
     private function isValidWebhook(Request $request): bool

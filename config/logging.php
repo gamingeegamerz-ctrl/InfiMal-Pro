@@ -54,6 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks,alerts')),
             'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks')),
             'ignore_exceptions' => false,
         ],
@@ -96,6 +97,13 @@ return [
             'level' => env('LOG_LEVEL', 'info'),
             'days' => env('LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
+        ],
+
+
+        'alerts' => [
+            'driver' => 'stack',
+            'channels' => array_filter(['daily', env('LOG_ALERT_CHANNEL', 'slack')]),
+            'ignore_exceptions' => true,
         ],
 
         'slack' => [

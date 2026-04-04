@@ -71,6 +71,7 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
         ->name('verification.send');
 });
 
+Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
 Route::middleware(['auth', 'flow.state', 'paid.access', 'subscription.active', 'usage.limits'])->group(function (): void {
 Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])
     ->name('payment.webhook.paypal')
