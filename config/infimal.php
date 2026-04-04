@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'subscription' => [
+        'default_plan' => env('INFIMAL_DEFAULT_PLAN', 'InfiMal Pro Monthly'),
+        'duration_days' => (int) env('INFIMAL_SUBSCRIPTION_DAYS', 30),
+    ],
     'limits' => [
         'campaigns_per_day' => (int) env('INFIMAL_CAMPAIGNS_PER_DAY', 10),
         'emails_per_day' => (int) env('INFIMAL_EMAILS_PER_DAY', 5000),
