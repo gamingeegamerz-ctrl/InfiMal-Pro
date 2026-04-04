@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
@@ -14,7 +15,7 @@ class GoogleAuthController extends Controller
         return Socialite::driver('google')->redirect();
     }
 
-    public function callback()
+    public function callback(): RedirectResponse
     {
         try {
             $googleUser = Socialite::driver('google')->user();
@@ -28,20 +29,24 @@ class GoogleAuthController extends Controller
                     'payment_status' => 'unpaid',
                     'is_paid' => false,
                     'license_status' => 'inactive',
+                    'campaign_count' => 0,
+                    'email_sent' => 0,
+                    'accepted_terms_at' => now(),
                 ]
             );
 
-            if (!$user->google_id) {
-                $user->update(['google_id' => $googleUser->getId()]);
-            }
+            $user->forceFill([
+                'google_id' => $googleUser->getId(),
+                'last_login_at' => now(),
+            ])->save();
 
             Auth::login($user, true);
 
-            if (!$user->hasPaid()) {
-                return redirect()->route('payment')->with('info', 'Please complete payment to access your account.');
+            if (! $user->hasPaid()) {
+                return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
             }
 
-            if (!$user->otp_verified_at) {
+            if (! $user->otp_verified_at) {
                 return redirect()->route('otp.verify.form');
             }
 
