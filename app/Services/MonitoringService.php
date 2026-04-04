@@ -16,6 +16,8 @@ class MonitoringService
             return;
         }
 
+        $debounceKey = 'alert:'.md5($event.'|'.($context['transmission_id'] ?? $context['order_id'] ?? 'generic'));
+        if (! Cache::add($debounceKey, true, now()->addMinute())) {
         $hash = sha1($event.'|'.json_encode($context));
         $key = 'alert:debounce:'.$hash;
 
@@ -24,6 +26,7 @@ class MonitoringService
         }
 
         $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message);
         SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message)->onQueue('alerts');
         if ((bool) config('infimal.alerts.enabled', true)) {
             $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

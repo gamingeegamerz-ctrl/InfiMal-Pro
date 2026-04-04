@@ -47,6 +47,7 @@ class RouteServiceProvider extends ServiceProvider
         ]);
 
         RateLimiter::for('webhook', fn (Request $request) => [
+            Limit::perMinute(60)->by($request->ip()),
             Limit::perMinute(120)->by($request->header('PAYPAL-TRANSMISSION-ID', $request->ip())),
         ]);
     }

@@ -49,6 +49,15 @@ class SendEmailJob implements ShouldQueue
 
         $messageId = 'job-'.$emailJob->id;
 
+        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
+        if ($existingDelivered) {
+            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+            return;
+        }
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
         $emailLog = EmailLog::updateOrCreate(
             ['message_id' => $messageId],
             [
@@ -62,6 +71,8 @@ class SendEmailJob implements ShouldQueue
             'recipient_email' => $emailJob->to_email,
             'subject' => $emailJob->subject,
             'status' => 'pending',
+            'message_id' => $messageId,
+            ]
         ]
         );
             'message_id' => $messageId,
