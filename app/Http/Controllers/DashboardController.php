@@ -29,33 +29,6 @@ class DashboardController extends Controller
         $clicks = (clone $logs)->where('clicked', true)->count();
         $bounces = (clone $logs)->where('status', 'bounced')->count();
 
-        if (! $user->hasPaid()) {
-            abort(403, 'Access denied. Payment required.');
-        }
-
-        $campaigns = Campaign::where('user_id', $user->id);
-        $subscribers = Subscriber::where('user_id', $user->id);
-        $logs = EmailLog::where('user_id', $user->id);
-
-        $sent = (clone $logs)->count();
-        $opens = (clone $logs)->where('opened', true)->count();
-        $clicks = (clone $logs)->where('clicked', true)->count();
-        $bounces = (clone $logs)->where('status', 'bounced')->count();
-
-
-        if (! $user->hasPaid()) {
-            abort(403, 'Access denied. Payment required.');
-        }
-
-        $campaigns = Campaign::where('user_id', $user->id);
-        $subscribers = Subscriber::where('user_id', $user->id);
-        $logs = EmailLog::where('user_id', $user->id);
-
-        $sent = (clone $logs)->count();
-        $opens = (clone $logs)->where('opened', true)->count();
-        $clicks = (clone $logs)->where('clicked', true)->count();
-        $bounces = (clone $logs)->where('status', 'bounced')->count();
-
         // MAIN VERSION FEATURE (KEPT, NOT REMOVED)
         $recentTrend = collect(range(6, 0))->map(function ($daysAgo) use ($user) {
             $date = now()->subDays($daysAgo);
@@ -91,19 +64,6 @@ class DashboardController extends Controller
             ],
             'recentCampaigns' => (clone $campaigns)->latest()->limit(5)->get(),
             'recentSubscribers' => (clone $subscribers)->latest()->limit(5)->get(),
-        ]);
-    }
-}
-                'unread_messages' => Message::where('user_id', $user->id)
-                    ->where('is_read', false)
-                    ->count(),
-            ],
-
-            'recentCampaigns' => (clone $campaigns)->latest()->limit(5)->get(),
-
-            'recentSubscribers' => (clone $subscribers)->latest()->limit(5)->get(),
-
-            // MAIN FEATURE PRESERVED
             'trend' => $recentTrend,
         ]);
     }

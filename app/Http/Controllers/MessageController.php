@@ -2,12 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,33 +14,6 @@ class MessageController extends Controller
 {
     public function index(): View
     {
-        $messages = Message::where('user_id', Auth::id())->latest()->paginate(15);
-
-        return view('messages.index', [
-            'messages' => $messages,
-            'totalMessages' => Message::where('user_id', Auth::id())->count(),
-            'unreadMessages' => Message::where('user_id', Auth::id())->where('is_read', false)->count(),
-        ]);
-    }
-
-    public function create(): View
-    {
-        return view('messages.create');
-    }
-
-    public function store(Request $request): RedirectResponse
-    {
-        Message::create($request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'subject' => ['required', 'string', 'max:255'],
-            'content' => ['required', 'string'],
-            'type' => ['nullable', 'in:email,sms,notification'],
-        ]) + [
-            'user_id' => Auth::id(),
-            'type' => $request->input('type', 'email'),
-        ]);
-
-        return redirect()->route('messages.index')->with('success', 'Message template saved.');
         $userId = Auth::id();
 
         // MAIN SAFETY CHECK (KEPT)
@@ -60,12 +27,6 @@ class MessageController extends Controller
             ]);
         }
 
-        $messages = DB::table('messages')->where('user_id', $userId)->latest()->paginate(15);
-
-        return view('messages.index', [
-            'messages' => $messages,
-            'totalMessages' => DB::table('messages')->where('user_id', $userId)->count(),
-            'unreadMessages' => DB::table('messages')->where('user_id', $userId)->where('is_read', false)->count(),
         // USE ELOQUENT (CODEX) BUT KEEP MAIN DATA
         $messages = Message::where('user_id', $userId)->latest()->paginate(15);
 
@@ -75,14 +36,12 @@ class MessageController extends Controller
             'unreadMessages' => Message::where('user_id', $userId)
                 ->where('is_read', false)
                 ->count(),
-
             // MAIN EXTRA DATA (KEPT)
             'emailsSent' => DB::table('email_logs')->where('user_id', $userId)->count(),
             'queueStatus' => Schema::hasTable('jobs') ? 'Active' : 'Not configured',
         ]);
     }
 
-    public function create()
     public function create(): View
     {
         return view('messages.create');
@@ -90,17 +49,19 @@ class MessageController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        Message::create($request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string'],
             'type' => ['nullable', 'in:email,sms,notification'],
-        ]) + [
-            'user_id' => Auth::id(),
-            'type' => $request->input('type', 'email'),
         ]);
 
-        return redirect()->route('messages.index')->with('success', 'Message template saved.');
+        Message::create([
+            'user_id' => Auth::id(),
+            'name' => $validated['name'],
+            'subject' => $validated['subject'],
+            'content' => $validated['content'],
+            'type' => $request->input('type', 'email'),
             'is_template' => true, // MAIN FEATURE KEPT
         ]);
 

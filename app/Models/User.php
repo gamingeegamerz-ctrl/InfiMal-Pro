@@ -23,26 +23,17 @@ class User extends Authenticatable
         'paid_at',
         'license_key',
         'license_status',
-        'paid_at',
-        'license_key',
-        'license_status',
         'avatar',
         'timezone',
         'phone',
         'bio',
         'preferences',
-        'payment_status',
-        'is_paid',
         'plan_name',
-        'paid_at',
         'payment_date',
         'payment_amount',
         'transaction_id',
-        'license_key',
-        'license_status',
         'license_expires_at',
         'is_admin',
-        'google_id',
         'otp_code',
         'otp_expires_at',
         'otp_verified_at',
@@ -59,22 +50,21 @@ class User extends Authenticatable
         'preferences' => 'array',
         'paid_at' => 'datetime',
         'payment_date' => 'datetime',
-        'plan_expiry_date' => 'datetime',
+        'license_expires_at' => 'datetime',
         'otp_expires_at' => 'datetime',
         'otp_verified_at' => 'datetime',
-        'is_paid' => 'boolean',
-        'license_expires_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
     ];
 
+    // =================== RELATIONSHIPS ===================
+    
     public function campaigns(): HasMany
     {
         return $this->hasMany(Campaign::class, 'user_id');
     }
 
     public function subscriberLists(): HasMany
-    public function lists(): HasMany
     {
         return $this->hasMany(MailingList::class, 'user_id');
     }
@@ -89,37 +79,11 @@ class User extends Authenticatable
         return $this->subscriberLists();
     }
 
-    public function mailingLists(): HasMany
-    {
-        return $this->subscriberLists();
-    }
-
-    public function subscriberLists(): HasMany
-    {
-        return $this->lists();
-    public function mailingLists(): HasMany
-    {
-        return $this->subscriberLists();
-    }
-
-    public function subscriberLists(): HasMany
-    {
-        return $this->subscriberLists();
-    }
-
-    public function mailingLists(): HasMany
-    {
-        return $this->subscriberLists();
-    }
-
     public function subscribers(): HasMany
     {
         return $this->hasMany(Subscriber::class, 'user_id');
     }
 
-    public function licenses(): HasMany
-    {
-        return $this->hasMany(License::class);
     public function smtpAccounts(): HasMany
     {
         return $this->hasMany(SMTPAccount::class, 'user_id');
@@ -137,66 +101,87 @@ class User extends Authenticatable
 
     public function activeLicense(): HasOne
     {
-        return $this->hasOne(License::class)->where('is_active', true);
-        return $this->hasOne(License::class, 'user_id')->where('status', 'active');
-        return $this->hasOne(License::class, 'user_id')->where(function($query) {
-            $query->where('status', 'active')->orWhere('is_active', true);
-        });
+        return $this->hasOne(License::class, 'user_id')
+            ->where(function($query) {
+                $query->where('status', 'active')
+                    ->orWhere('is_active', true);
+            });
     }
 
+    // =================== PAYMENT & ACCESS METHODS ===================
+    
+    /**
+     * Check if user has paid (Admin always returns true)
+     */
     public function hasPaid(): bool
     {
-        return (bool) ($this->is_paid || in_array((string) $this->payment_status, ['paid'], true) || !is_null($this->paid_at));
+        // Admin always has paid access
+        if ($this->is_admin) {
+            return true;
+        }
+        
+        // Normal user payment check
+        return (bool) ($this->is_paid || $this->payment_status === 'paid' || !is_null($this->paid_at));
     }
 
+    /**
+     * Check if user has active license (Admin always returns true)
+     */
     public function hasActiveLicense(): bool
     {
-    public function hasPaidAccess(): bool
-    {
-        $paid = (bool) $this->is_paid;
-        $licenseActive = $this->activeLicense()->exists()
-            || ((string) $this->license_status === 'active' && !empty($this->license_key));
-        $otpRequired = !is_null($this->otp_code) || !is_null($this->otp_expires_at);
-
-        return $paid && $licenseActive && (!$otpRequired || !is_null($this->otp_verified_at));
-        return $this->is_paid || (string) $this->payment_status === 'paid' || ! is_null($this->paid_at);
-        return (bool) ($this->is_paid || (string) $this->payment_status === 'paid' || !is_null($this->paid_at));
-    }
-
-    public function hasActiveLicense(): bool
-    {
-        return $this->activeLicense()->exists() || (! empty($this->license_key) && ($this->license_status === 'active' || $this->license_status === null));
-        if (! empty($this->license_key)) {
+        // Admin always has active license
+        if ($this->is_admin) {
+            return true;
+        }
+        
+        // Check via license_key column
+        if (!empty($this->license_key)) {
             return $this->licenses()
                 ->where('license_key', $this->license_key)
                 ->where('status', 'active')
-                ->where(function ($query) {
+                ->where(function($query) {
                     $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
                 })
                 ->exists();
         }
 
+        // Check via activeLicense relationship
         return $this->activeLicense()
-            ->where(function ($query) {
+            ->where(function($query) {
                 $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
             ->exists();
-        return $this->activeLicense()->exists() || (! empty($this->license_key) && ($this->license_status === 'active' || $this->license_status === null));
-        return $this->activeLicense()->exists()
-            || ((string) $this->license_status === 'active' && !empty($this->license_key));
     }
 
-    public function isOtpRequired(): bool
+    /**
+     * Check if OTP is required
+     */
     public function otpRequired(): bool
     {
         return !is_null($this->otp_code) || !is_null($this->otp_expires_at);
     }
 
+    /**
+     * Alias for otpRequired() for backward compatibility
+     */
+    public function isOtpRequired(): bool
+    {
+        return $this->otpRequired();
+    }
+
+    /**
+     * Check if user has full paid access (Admin always returns true)
+     */
     public function hasPaidAccess(): bool
     {
+        // Admin always has full access
+        if ($this->is_admin) {
+            return true;
+        }
+        
+        // Normal user checks
         return $this->hasPaid()
             && $this->hasActiveLicense()
-            && (!$this->isOtpRequired() || !is_null($this->otp_verified_at));
             && (!$this->otpRequired() || !is_null($this->otp_verified_at));
     }
 }

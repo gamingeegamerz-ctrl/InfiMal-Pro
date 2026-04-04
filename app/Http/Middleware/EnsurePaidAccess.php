@@ -11,8 +11,8 @@ class EnsurePaidAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Allow access to payment and OTP routes without checking paid access
         if ($request->routeIs('payment*') || $request->is('paypal/*') || $request->routeIs('otp.verify.*')) {
-        if ($request->routeIs('payment') || $request->is('paypal/*') || $request->routeIs('otp.verify.*')) {
             return $next($request);
         }
 
@@ -22,6 +22,7 @@ class EnsurePaidAccess
             return redirect()->route('login');
         }
 
+        // Auto-create license if user has license_key but no active license record
         if ($user->hasPaid() && !$user->activeLicense()->exists() && $user->license_status === 'active' && $user->license_key) {
             License::firstOrCreate(
                 ['user_id' => $user->id, 'license_key' => $user->license_key],
@@ -30,28 +31,22 @@ class EnsurePaidAccess
             $user->refresh();
         }
 
+        // Check if user has paid access
         if ($user->hasPaidAccess()) {
             return $next($request);
         }
 
-        if (!$user->is_paid) {
-            return redirect()->route('payment')->with('error', 'Payment is required to continue.');
-        }
-
-        if ((string) $user->license_status !== 'active' || empty($user->license_key)) {
-            return redirect()->route('payment')->with('error', 'License activation is pending.');
-        }
-
-        return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to continue.');
+        // Payment required
         if (!$user->hasPaid()) {
             return redirect()->route('payment')->with('error', 'Payment is required to continue.');
         }
 
+        // License required
         if (!$user->hasActiveLicense()) {
             return redirect()->route('payment')->with('error', 'Active license is required.');
         }
 
-        if ($user->isOtpRequired() && !$user->otp_verified_at) {
+        // OTP verification required
         if ($user->otpRequired() && !$user->otp_verified_at) {
             return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP first.');
         }

@@ -22,29 +22,6 @@ class CampaignController extends Controller
     {
         $userId = Auth::id();
 
-        $campaigns = Campaign::where('user_id', $userId)
-            ->with('mailingList')
-            ->orderByDesc('created_at')
-            ->get();
-
-        $totalCampaigns = $campaigns->count();
-        $draftCount = $campaigns->where('status', 'draft')->count();
-        $scheduledCount = $campaigns->where('status', 'scheduled')->count();
-        $sendingCount = $campaigns->where('status', 'sending')->count();
-        $sentCampaigns = $campaigns->where('status', 'sent')->count();
-        $activeCount = $scheduledCount + $sendingCount;
-
-        $emailBase = DB::table('email_logs')->where('user_id', $userId);
-        $campaigns = Campaign::where('user_id', Auth::id())->with('mailingList')->latest()->paginate(12);
-
-        return view('campaigns.index', [
-            'campaigns' => $campaigns,
-            'totalCampaigns' => Campaign::where('user_id', Auth::id())->count(),
-            'sentCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'sent')->count(),
-            'draftCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'draft')->count(),
-            'scheduledCampaigns' => Campaign::where('user_id', Auth::id())->where('status', 'scheduled')->count(),
-        $userId = Auth::id();
-
         // KEEP CODEX PAGINATION + WITH
         $campaigns = Campaign::where('user_id', $userId)
             ->with('mailingList')
@@ -72,18 +49,6 @@ class CampaignController extends Controller
         $avgClickRate = $emailsSent > 0 ? round(($clicked / $emailsSent) * 100, 2) : 0;
         $bounceRate = $emailsSent > 0 ? round(($bounced / $emailsSent) * 100, 2) : 0;
 
-        return view('campaigns.index', compact(
-            'campaigns',
-            'totalCampaigns',
-            'sentCampaigns',
-            'draftCount',
-            'scheduledCount',
-            'sendingCount',
-            'activeCount',
-            'avgOpenRate',
-            'avgClickRate',
-            'bounceRate'
-        ));
         return view('campaigns.index', [
             'campaigns' => $campaigns,
             'totalCampaigns' => $totalCampaigns,
@@ -101,7 +66,6 @@ class CampaignController extends Controller
     public function create(): View
     {
         return view('campaigns.create', [
-            'lists' => MailingList::where('user_id', Auth::id())->withCount('subscribers')->orderBy('name')->get(),
             'lists' => MailingList::where('user_id', Auth::id())
                 ->withCount('subscribers')
                 ->orderBy('name')
@@ -138,13 +102,6 @@ class CampaignController extends Controller
             'html_content' => $validated['html_content'] ?? $validated['content'],
             'plain_text' => strip_tags($validated['content']),
             'status' => $validated['status'] ?? 'draft',
-            'total_recipients' => Subscriber::where('user_id', Auth::id())->where('list_id', $list->id)->active()->count(),
-        ]);
-
-        return redirect()->route('campaigns.show', $campaign)->with('success', 'Campaign created successfully.');
-        ]);
-
-        return redirect()->route('campaigns.show', $campaign)->with('success', 'Campaign created successfully.');
             'total_recipients' => Subscriber::where('user_id', Auth::id())
                 ->where('list_id', $list->id)
                 ->active()
@@ -157,11 +114,6 @@ class CampaignController extends Controller
 
     public function show(Campaign $campaign): View
     {
-        $campaign = Campaign::where('user_id', Auth::id())->with('mailingList')->findOrFail($campaign->id);
-
-        return view('campaigns.show', [
-            'campaign' => $campaign,
-            'subscriberCount' => Subscriber::where('user_id', Auth::id())->where('list_id', $campaign->list_id)->active()->count(),
         $campaign = Campaign::where('user_id', Auth::id())
             ->with('mailingList')
             ->findOrFail($campaign->id);
@@ -181,7 +133,6 @@ class CampaignController extends Controller
 
         return view('campaigns.create', [
             'campaign' => $campaign,
-            'lists' => MailingList::where('user_id', Auth::id())->withCount('subscribers')->orderBy('name')->get(),
             'lists' => MailingList::where('user_id', Auth::id())
                 ->withCount('subscribers')
                 ->orderBy('name')
@@ -215,7 +166,6 @@ class CampaignController extends Controller
             'plain_text' => strip_tags($validated['content']),
         ]);
 
-        return redirect()->route('campaigns.show', $campaign)->with('success', 'Campaign updated successfully.');
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campaign updated successfully.');
     }
@@ -276,9 +226,8 @@ class CampaignController extends Controller
             'total_recipients' => $subscribers->count(),
         ]);
 
-        return redirect()->route('campaigns.show', $campaign)->with('success', 'Campaign queued for delivery. Start a queue worker to process email jobs.');
         return redirect()->route('campaigns.show', $campaign)
-            ->with('success', 'Campaign queued for delivery.');
+            ->with('success', 'Campaign queued for delivery. Start a queue worker to process email jobs.');
     }
 
     public function preview(Campaign $campaign): View
@@ -299,5 +248,4 @@ class CampaignController extends Controller
             'bounce_rate' => $campaign->bounce_rate,
         ]);
     }
-}
 }

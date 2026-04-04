@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\MailingList;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -23,9 +24,10 @@ class ProfileController extends Controller
             ->get()
             ->sum('subscribers_count');
 
-        $totalSent = Campaign::where('user_id', $user->id)
-            ->selectRaw('COALESCE(SUM(sent_count), SUM(total_sent), 0) as sent_total')
-            ->value('sent_total') ?? 0;
+        // FIXED: Use email_logs table instead of campaigns table
+        $totalSent = DB::table('email_logs')
+            ->where('user_id', $user->id)
+            ->count();
 
         $stats = [
             'total_campaigns' => $totalCampaigns,
@@ -57,16 +59,19 @@ class ProfileController extends Controller
                 Rule::unique('users')->ignore($user->id),
             ],
             'phone' => ['nullable', 'string', 'max:20'],
-            'timezone' => ['nullable', 'string', 'timezone'],
+            'timezone' => ['nullable', 'string'],
             'bio' => ['nullable', 'string', 'max:500'],
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            return back()->withErrors($validator)->withInput();
         }
 
         $user->update([
@@ -104,15 +109,27 @@ class ProfileController extends Controller
 
     public function settings()
     {
+        $user = Auth::user();
+        
+        // FIXED: Use email_logs table
+        $totalSent = DB::table('email_logs')
+            ->where('user_id', $user->id)
+            ->count();
+        
+        $totalSubscribers = MailingList::where('user_id', $user->id)
+            ->withCount('subscribers')
+            ->get()
+            ->sum('subscribers_count');
+        
         return view('profile.index', [
-            'user' => Auth::user(),
+            'user' => $user,
             'stats' => [
-                'total_campaigns' => Auth::user()->campaigns()->count(),
-                'total_subscribers' => MailingList::where('user_id', Auth::id())->withCount('subscribers')->get()->sum('subscribers_count'),
-                'total_sent' => (int) (Campaign::where('user_id', Auth::id())->selectRaw('COALESCE(SUM(sent_count), SUM(total_sent), 0) as sent_total')->value('sent_total') ?? 0),
-                'account_age' => optional(Auth::user()->created_at)?->diffForHumans() ?? 'N/A',
+                'total_campaigns' => $user->campaigns()->count(),
+                'total_subscribers' => $totalSubscribers,
+                'total_sent' => (int) $totalSent,
+                'account_age' => optional($user->created_at)?->diffForHumans() ?? 'N/A',
             ],
-            'paymentStatus' => Auth::user()->hasPaid() ? 'paid' : 'free',
+            'paymentStatus' => $user->hasPaid() ? 'paid' : 'free',
         ]);
     }
 
@@ -126,21 +143,28 @@ class ProfileController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            return back()->withErrors($validator)->withInput();
         }
 
         $user->update([
             'password' => Hash::make($request->password),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Password updated successfully',
-        ]);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Password updated successfully',
+            ]);
+        }
+
+        return redirect()->route('profile.index')->with('success', 'Password updated successfully.');
     }
 
     public function setPassword(Request $request)
@@ -217,10 +241,20 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
+        // FIXED: Use email_logs table
+        $totalSent = DB::table('email_logs')
+            ->where('user_id', $user->id)
+            ->count();
+        
+        $totalSubscribers = MailingList::where('user_id', $user->id)
+            ->withCount('subscribers')
+            ->get()
+            ->sum('subscribers_count');
+
         $stats = [
             'total_campaigns' => $user->campaigns()->count(),
-            'total_subscribers' => MailingList::where('user_id', $user->id)->withCount('subscribers')->get()->sum('subscribers_count'),
-            'total_sent' => (int) (Campaign::where('user_id', $user->id)->selectRaw('COALESCE(SUM(sent_count), SUM(total_sent), 0) as sent_total')->value('sent_total') ?? 0),
+            'total_subscribers' => $totalSubscribers,
+            'total_sent' => (int) $totalSent,
             'account_age' => optional($user->created_at)?->diffForHumans() ?? 'N/A',
         ];
 
