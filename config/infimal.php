@@ -22,3 +22,4 @@ return [
         'enabled' => (bool) env('OPS_ALERTS_ENABLED', true),
     ],
 ];
+
