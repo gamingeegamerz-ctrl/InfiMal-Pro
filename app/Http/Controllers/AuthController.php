@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class AuthController extends Controller
@@ -29,6 +30,12 @@ class AuthController extends Controller
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            Log::channel('security')->warning('Login failed', [
+                'email' => $credentials['email'],
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
             return back()->withErrors(['email' => 'Invalid credentials provided.'])->onlyInput('email');
         }
 
@@ -36,6 +43,8 @@ class AuthController extends Controller
         $user = $request->user();
 
         $user->forceFill(['last_login_at' => now()])->save();
+
+        Log::channel('security')->info('Login succeeded', ['user_id' => $user->id, 'ip' => $request->ip()]);
 
         if (! $user->hasPaid()) {
             return redirect()->route('payment');

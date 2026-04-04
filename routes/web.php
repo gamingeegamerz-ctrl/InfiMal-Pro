@@ -30,9 +30,9 @@ Route::view('/help-center', 'help-center')->name('help.center');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:6,1');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::get('/forgot-password', fn() => view('auth.forgot-password'))->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('password.email');
     Route::get('/reset-password/{token}', fn($token) => view('auth.reset-password', ['token' => $token]))->name('password.reset');
@@ -48,6 +48,30 @@ Route::get('/track/click/{id}', [TrackingController::class, 'clickById'])->name(
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 
+Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->middleware('throttle:webhook')
+    ->name('payment.webhook.paypal')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->middleware('throttle:webhook')
+    ->name('billing.webhook.paypal')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+
+Route::middleware(['auth', 'flow.state'])->group(function (): void {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
+    Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
+    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
+
+    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
+    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
+
+    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('verification.send');
+});
+
+Route::middleware(['auth', 'flow.state', 'paid.access', 'subscription.active', 'usage.limits'])->group(function (): void {
 Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])
     ->name('payment.webhook.paypal')
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);

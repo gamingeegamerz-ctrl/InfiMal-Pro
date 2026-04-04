@@ -15,18 +15,26 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
-class SendCampaignEmailJob implements ShouldQueue
+class SendEmailJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 5;
+
+    public function backoff(): array
+    {
+        return [30, 60, 120, 300];
+    }
+
     public function __construct(public int $emailJobId)
     {
+        $this->onQueue('emails');
     }
 
     public function handle(): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
-        if (!$emailJob || $emailJob->status === 'sent') {
+        if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
             return;
         }
 
@@ -35,38 +43,23 @@ class SendCampaignEmailJob implements ShouldQueue
             ->orderByDesc('is_default')
             ->first();
 
-        if (!$smtp) {
+        if (! $smtp) {
             $emailJob->update(['status' => 'failed', 'error_message' => 'Active SMTP not configured']);
             return;
         }
 
-        $existingLog = EmailLog::where('user_id', $emailJob->user_id)
-            ->where('campaign_id', $emailJob->campaign_id)
-            ->where('to_email', $emailJob->to_email)
-            ->latest('id')
-            ->first();
+        $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
 
-        if ($existingLog && in_array($existingLog->status, ['sent', 'delivered'], true)) {
-            $emailJob->update(['status' => 'sent', 'sent_at' => $existingLog->sent_at ?? now(), 'smtp_id' => $existingLog->smtp_id]);
-            return;
-        }
-
-        $messageId = $existingLog?->message_id ?: (string) Str::uuid();
-        $messageId = 'infimal-job-' . $emailJob->id;
-        $messageId = 'job-' . $emailJob->id;
-
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-                'user_id' => $emailJob->user_id,
-                'campaign_id' => $emailJob->campaign_id,
-                'smtp_id' => $smtp->id,
-                'to_email' => $emailJob->to_email,
-                'recipient_email' => $emailJob->to_email,
-                'subject' => $emailJob->subject,
-                'status' => 'pending',
-            ]
-        );
+        $emailLog = EmailLog::create([
+            'user_id' => $emailJob->user_id,
+            'campaign_id' => $emailJob->campaign_id,
+            'smtp_id' => $smtp->id,
+            'to_email' => $emailJob->to_email,
+            'recipient_email' => $emailJob->to_email,
+            'subject' => $emailJob->subject,
+            'status' => 'pending',
+            'message_id' => $messageId,
+        ]);
 
         $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
 
@@ -81,20 +74,28 @@ class SendCampaignEmailJob implements ShouldQueue
             'mail.from.name' => $smtp->from_name ?: 'InfiMal',
         ]);
 
-        try {
-            Mail::html($htmlBody, function ($message) use ($emailJob, $messageId): void {
-                $message->to($emailJob->to_email)
-                    ->subject($emailJob->subject)
-                    ->getHeaders()
-                    ->addTextHeader('Message-ID', $messageId);
-            });
+        Mail::html($htmlBody, function ($message) use ($emailJob, $messageId): void {
+            $message->to($emailJob->to_email)
+                ->subject($emailJob->subject)
+                ->getHeaders()
+                ->addTextHeader('Message-ID', $messageId);
+        });
 
-            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
-            $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
-        } catch (\Throwable $e) {
-            Log::warning('Queued send failed', ['email_job_id' => $emailJob->id, 'error' => $e->getMessage()]);
-            $emailJob->update(['status' => 'failed', 'error_message' => $e->getMessage(), 'smtp_id' => $smtp->id]);
-            $emailLog->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
-        }
+        $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+        $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::channel('security')->error('Queued email permanently failed', [
+            'email_job_id' => $this->emailJobId,
+            'error' => $e->getMessage(),
+        ]);
+
+        EmailJob::where('id', $this->emailJobId)->update([
+            'status' => 'failed',
+            'error_message' => substr($e->getMessage(), 0, 1000),
+            'failed_at' => now(),
+        ]);
     }
 }
