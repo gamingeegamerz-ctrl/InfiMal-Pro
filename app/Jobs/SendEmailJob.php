@@ -13,7 +13,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 
 class SendEmailJob implements ShouldQueue
 {
@@ -48,6 +47,11 @@ class SendEmailJob implements ShouldQueue
             return;
         }
 
+        $messageId = 'job-'.$emailJob->id;
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
         $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
 
         $emailLog = EmailLog::create([
@@ -58,6 +62,8 @@ class SendEmailJob implements ShouldQueue
             'recipient_email' => $emailJob->to_email,
             'subject' => $emailJob->subject,
             'status' => 'pending',
+        ]
+        );
             'message_id' => $messageId,
         ]);
 

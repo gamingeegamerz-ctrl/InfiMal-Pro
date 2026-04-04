@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendOpsAlertJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class MonitoringService
@@ -11,6 +12,19 @@ class MonitoringService
     {
         Log::channel('alerts')->critical($event, $context);
 
+        if (! (bool) config('infimal.alerts.enabled', true)) {
+            return;
+        }
+
+        $hash = sha1($event.'|'.json_encode($context));
+        $key = 'alert:debounce:'.$hash;
+
+        if (! Cache::add($key, now()->timestamp, now()->addMinute())) {
+            return;
+        }
+
+        $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message)->onQueue('alerts');
         if ((bool) config('infimal.alerts.enabled', true)) {
             $message = $event.' | '.json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             SendOpsAlertJob::dispatch('[InfiMal Critical] '.$event, $message);
