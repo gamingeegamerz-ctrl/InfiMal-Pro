@@ -7,18 +7,20 @@ use App\Models\EmailLog;
 use App\Models\Message;
 use App\Models\SMTPAccount;
 use App\Models\Subscriber;
+use App\Services\UserActivityService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly UserActivityService $activityService)
+    {
+    }
+
     public function index(): View
     {
         $user = Auth::user();
-
-        if (! $user->hasPaid()) {
-            abort(403, 'Access denied. Payment required.');
-        }
+        $this->activityService->sync($user);
 
         $campaigns = Campaign::where('user_id', $user->id);
         $subscribers = Subscriber::where('user_id', $user->id);
@@ -29,25 +31,14 @@ class DashboardController extends Controller
         $clicks = (clone $logs)->where('clicked', true)->count();
         $bounces = (clone $logs)->where('status', 'bounced')->count();
 
-        // MAIN VERSION FEATURE (KEPT, NOT REMOVED)
         $recentTrend = collect(range(6, 0))->map(function ($daysAgo) use ($user) {
             $date = now()->subDays($daysAgo);
 
             return [
                 'label' => $date->format('M d'),
-                'sent' => EmailLog::where('user_id', $user->id)
-                    ->whereDate('created_at', $date->toDateString())
-                    ->count(),
-
-                'opens' => EmailLog::where('user_id', $user->id)
-                    ->where('opened', true)
-                    ->whereDate('created_at', $date->toDateString())
-                    ->count(),
-
-                'clicks' => EmailLog::where('user_id', $user->id)
-                    ->where('clicked', true)
-                    ->whereDate('created_at', $date->toDateString())
-                    ->count(),
+                'sent' => EmailLog::where('user_id', $user->id)->whereDate('created_at', $date->toDateString())->count(),
+                'opens' => EmailLog::where('user_id', $user->id)->where('opened', true)->whereDate('created_at', $date->toDateString())->count(),
+                'clicks' => EmailLog::where('user_id', $user->id)->where('clicked', true)->whereDate('created_at', $date->toDateString())->count(),
             ];
         })->values();
 
@@ -65,6 +56,8 @@ class DashboardController extends Controller
             'recentCampaigns' => (clone $campaigns)->latest()->limit(5)->get(),
             'recentSubscribers' => (clone $subscribers)->latest()->limit(5)->get(),
             'trend' => $recentTrend,
+            'onboardingState' => $this->activityService->onboardingState($user),
+            'isInactiveUser' => $this->activityService->isInactive($user),
         ]);
     }
 }
