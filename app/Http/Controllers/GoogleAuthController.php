@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
@@ -14,13 +15,16 @@ class GoogleAuthController extends Controller
 {
     public function redirect()
     {
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')
+            ->scopes(['openid', 'email', 'profile'])
+            ->with(['prompt' => 'select_account'])
+            ->redirect();
     }
 
     public function callback(): RedirectResponse
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $googleUser = Socialite::driver('google')->stateless()->user();
 
             $user = User::firstOrCreate(
                 ['email' => $googleUser->getEmail()],
@@ -35,7 +39,19 @@ class GoogleAuthController extends Controller
                     'campaign_count' => 0,
                     'email_sent' => 0,
                     'onboarding_step' => 'google_setup_required',
+                    'onboarding_step' => 'google_profile_required',
                     'accepted_terms_at' => null,
+                ]
+            );
+
+            $requiresGoogleOnboarding = ! $user->accepted_terms_at || $user->onboarding_step === 'google_profile_required';
+
+            $user->forceFill([
+                'google_id' => $googleUser->getId(),
+                'last_login_at' => now(),
+                'onboarding_step' => $requiresGoogleOnboarding ? 'google_profile_required' : ($user->onboarding_step ?: 'payment_required'),
+            'onboarding_step' => 'payment_required',
+                    'accepted_terms_at' => now(),
                 ]
             );
 
@@ -48,6 +64,8 @@ class GoogleAuthController extends Controller
 
             if (! $user->google_password_set || ! $user->accepted_terms_at) {
                 return redirect()->route('google.complete.prompt');
+            if ($requiresGoogleOnboarding) {
+                return redirect()->route('google.onboarding.form');
             }
 
             if (! $user->hasPaid()) {
@@ -91,10 +109,53 @@ class GoogleAuthController extends Controller
         $user->forceFill([
             'password' => Hash::make($validated['password']),
             'google_password_set' => true,
+    public function onboardingForm(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        if ($user->onboarding_step !== 'google_profile_required') {
+            return redirect()->route('payment');
+        }
+
+        return response()->json([
+            'message' => 'Complete Google signup with password and terms acceptance.',
+            'required_fields' => ['name', 'password', 'password_confirmation', 'terms_accepted'],
+            'next' => route('google.onboarding.complete'),
+        ]);
+    }
+
+    public function completeOnboarding(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'terms_accepted' => ['required', 'accepted'],
+        ]);
+
+        $user->forceFill([
+            'name' => $validated['name'],
+            'password' => Hash::make($validated['password']),
             'accepted_terms_at' => now(),
             'onboarding_step' => 'payment_required',
         ])->save();
 
         return redirect()->route('payment')->with('success', 'Google signup completed. Continue to payment.');
+        $request->session()->put('onboarding_step', 'payment_required');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'redirect' => route('payment'),
+            ]);
+        }
+
+        return redirect()->route('payment')->with('success', 'Profile completed. Proceed to payment.');
     }
 }

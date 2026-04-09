@@ -173,13 +173,11 @@ class User extends Authenticatable
      */
     public function hasActiveLicense(): bool
     {
-        // Admin always has active license
         if ($this->is_admin) {
             return true;
         }
-        
-        // Check via license_key column
-        if (!empty($this->license_key)) {
+
+        if (! empty($this->license_key)) {
             return $this->licenses()
                 ->where('license_key', $this->license_key)
                 ->where('status', 'active')

@@ -62,6 +62,8 @@ class SendEmailJob implements ShouldQueue
             }
         }
 
+        }
+
         $messageId = 'job-'.$emailJob->id;
 
         $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
@@ -73,6 +75,23 @@ class SendEmailJob implements ShouldQueue
         $emailLog = EmailLog::updateOrCreate(
             ['message_id' => $messageId],
             [
+        $messageId = 'job-'.$emailJob->id;
+
+        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
+        if ($existingDelivered) {
+            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+            return;
+        }
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
+        $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
+
+        $emailLog = EmailLog::create([
             'user_id' => $emailJob->user_id,
             'campaign_id' => $emailJob->campaign_id,
             'smtp_id' => $smtp->id,
@@ -82,7 +101,10 @@ class SendEmailJob implements ShouldQueue
             'status' => 'pending',
             'message_id' => $messageId,
             ]
+        ]
         );
+            'message_id' => $messageId,
+        ]);
 
         $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
 
