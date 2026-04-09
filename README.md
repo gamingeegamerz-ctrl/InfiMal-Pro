@@ -33,14 +33,37 @@ PAYPAL_WEBHOOK_ID=
 
 ## Deployment steps
 
+### Option A (recommended): one command deploy script
+
+Run the bundled script from the project root:
+
+```bash
+bash scripts/deploy.sh
+```
+
+The script installs Composer dependencies, creates `.env` if missing, generates `APP_KEY` when needed, runs migrations, executes Unit/Feature tests, and warms config/route/view caches.
+
+### Option B: manual deployment commands
+
 1. `composer install --no-interaction --prefer-dist --optimize-autoloader`
 2. `cp .env.example .env`
 3. `php artisan key:generate`
 4. `php artisan migrate --force`
-5. `php artisan config:cache && php artisan route:cache && php artisan view:cache`
-6. Run a queue worker on the server:
+5. `php artisan test --testsuite=Unit,Feature`
+6. `php artisan config:cache && php artisan route:cache && php artisan view:cache`
+7. Run a queue worker on the server:
    - `php artisan queue:work --queue=default,emails --tries=3 --sleep=3`
-7. Configure your web server to serve `public/` and your scheduler if you add recurring jobs.
+8. Configure your web server to serve `public/` and your scheduler if you add recurring jobs.
+
+### Composer network troubleshooting
+
+If `composer install` fails with GitHub `CONNECT tunnel failed, response 403` errors, your server/proxy is blocking GitHub package downloads. Allow outbound access to:
+
+- `github.com`
+- `api.github.com`
+- `codeload.github.com`
+
+You can also configure an authenticated proxy in Composer (if your infrastructure requires one) before running deployment.
 
 ## PayPal flow
 
