@@ -70,6 +70,12 @@ class GoogleAuthController extends Controller
                 return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
             }
 
+            }
+
+            if (! $user->hasPaid()) {
+                return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
+            }
+
             if (! $user->google_password_set || ! $user->accepted_terms_at) {
                 return redirect()->route('google.complete.prompt');
             if ($requiresGoogleOnboarding) {

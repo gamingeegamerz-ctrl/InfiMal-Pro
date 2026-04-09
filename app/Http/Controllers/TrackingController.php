@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EmailLog;
 use App\Models\Subscriber;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -13,45 +14,20 @@ class TrackingController extends Controller
 {
     public function openById(int $id): Response
     {
-        EmailLog::whereKey($id)
+        $firstOpen = EmailLog::whereKey($id)
             ->whereNull('opened_at')
-            ->update(['opened' => true, 'opened_at' => now()]);
-        $log = EmailLog::find($id);
-        if ($log) {
-            $log->update(['opened' => true]);
-
-        if ($log && ! $log->opened) {
-            $log->update(['opened' => true]);
-            $alreadyOpened = DB::table('opens')->where('email_log_id', $log->id)->exists();
-            if (! $alreadyOpened) {
-                DB::table('opens')->insert([
-                    'email_log_id' => $log->id,
-                    'campaign_id' => $log->campaign_id,
-                    'user_id' => $log->user_id,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_opened');
-            }
-        // MAIN optimization + CODEX tracking
-        EmailLog::whereKey($id)
-            ->whereNull('opened_at')
-            ->update([
-                'opened' => true,
-                'opened_at' => now()
-            ]);
+            ->update(['opened' => true, 'opened_at' => now()]) > 0;
 
         $log = EmailLog::find($id);
 
-        if ($log) {
-            DB::table('opens')->insertOrIgnore([
+        if ($log && $firstOpen) {
+            DB::table('opens')->insert([
                 'email_log_id' => $log->id,
                 'campaign_id' => $log->campaign_id,
                 'user_id' => $log->user_id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-            DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_opened');
 
             DB::table('campaigns')
                 ->where('id', $log->campaign_id)
@@ -63,99 +39,13 @@ class TrackingController extends Controller
 
     public function clickById(Request $request, int $id): RedirectResponse
     {
-        EmailLog::whereKey($id)
+        $firstClick = EmailLog::whereKey($id)
             ->whereNull('clicked_at')
-            ->update(['clicked' => true, 'clicked_at' => now()]);
-
-        return redirect()->away((string) $request->query('url', '/'));
-    }
-
-    public function trackOpen(Request $request): Response
-    {
-        return $request->filled('id') ? $this->openById((int) $request->query('id')) : $this->pixel();
-    public function trackOpen(Request $request): Response
-    {
-        return $request->filled('id') ? $this->openById((int) $request->query('id')) : $this->pixel();
-        $log = EmailLog::find($id);
-        if ($log) {
-
-        if ($log) {
-            $firstClick = ! $log->clicked;
-            $log->update(['clicked' => true]);
-            DB::table('clicks')->insert([
-                'email_log_id' => $log->id,
-                'campaign_id' => $log->campaign_id,
-                'user_id' => $log->user_id,
-                'url' => (string) $request->query('url', '/'),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_clicked');
-            if ($firstClick) {
-                DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_clicked');
-            }
-    public function trackOpen(Request $request): Response
-    {
-        if ($request->filled('id')) {
-            return $this->openById((int) $request->query('id'));
-        }
-
-        return redirect()->away((string) $request->query('url', '/'));
-    }
-
-    public function trackBounce(Request $request)
-    {
-        return $request->filled('id')
-            ? $this->clickById($request, (int) $request->query('id'))
-            : redirect((string) $request->query('url', '/'));
-        $validated = $request->validate([
-            'email_log_id' => ['required', 'integer'],
-            'reason' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $log = EmailLog::findOrFail($validated['email_log_id']);
-        $log->update(['status' => 'bounced', 'error_message' => $validated['reason'] ?? null]);
-
-        DB::table('bounces')->insert([
-            'email_log_id' => $log->id,
-            'campaign_id' => $log->campaign_id,
-            'user_id' => $log->user_id,
-            'reason' => $validated['reason'] ?? null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_bounced');
-        if ($log->status !== 'bounced') {
-            $log->update(['status' => 'bounced', 'error_message' => $validated['reason'] ?? null]);
-            DB::table('bounces')->insert([
-                'email_log_id' => $log->id,
-                'campaign_id' => $log->campaign_id,
-                'user_id' => $log->user_id,
-                'reason' => $validated['reason'] ?? null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            DB::table('campaigns')->where('id', $log->campaign_id)->increment('total_bounced');
-        }
-
-        if ($log->recipient_email) {
-            Subscriber::where('user_id', $log->user_id)->where('email', $log->recipient_email)->update(['status' => 'bounced']);
-        }
-
-    public function clickById(Request $request, int $id): RedirectResponse
-    {
-        // MAIN optimization + CODEX tracking
-        EmailLog::whereKey($id)
-            ->whereNull('clicked_at')
-            ->update([
-                'clicked' => true,
-                'clicked_at' => now()
-            ]);
+            ->update(['clicked' => true, 'clicked_at' => now()]) > 0;
 
         $log = EmailLog::find($id);
 
-        if ($log) {
+        if ($log && $firstClick) {
             DB::table('clicks')->insert([
                 'email_log_id' => $log->id,
                 'campaign_id' => $log->campaign_id,
@@ -173,43 +63,60 @@ class TrackingController extends Controller
         return redirect()->away((string) $request->query('url', '/'));
     }
 
-    // ✅ MERGED BOTH BOUNCE HANDLERS INTO ONE (NO DUPLICATE FUNCTION)
-    public function trackBounce(Request $request)
+    public function trackOpen(Request $request): Response
     {
-        $request->validate(['message_id' => 'required|string']);
+        return $request->filled('id')
+            ? $this->openById((int) $request->query('id'))
+            : $this->pixel();
+    }
 
-        EmailLog::where('message_id', $request->string('message_id'))
-            ->whereNull('bounced_at')
-            ->update(['status' => 'bounced', 'bounced_at' => now()]);
-        // MAIN style (message_id)
-        if ($request->has('message_id')) {
-            EmailLog::where('message_id', $request->string('message_id'))
-                ->whereNull('bounced_at')
-                ->update([
-                    'status' => 'bounced',
-                    'bounced_at' => now()
-                ]);
+    public function trackClick(Request $request): RedirectResponse
+    {
+        if ($request->filled('id')) {
+            return $this->clickById($request, (int) $request->query('id'));
         }
 
-        // CODEX style (full tracking)
-        if ($request->has('email_log_id')) {
-            $validated = $request->validate([
+        return redirect()->away((string) $request->query('url', '/'));
+    }
+
+    public function trackBounce(Request $request): JsonResponse
+    {
+        $log = null;
+
+        if ($request->filled('email_log_id')) {
+            $request->validate([
                 'email_log_id' => ['required', 'integer'],
                 'reason' => ['nullable', 'string', 'max:1000'],
             ]);
 
-            $log = EmailLog::findOrFail($validated['email_log_id']);
+            $log = EmailLog::findOrFail((int) $request->input('email_log_id'));
+        } elseif ($request->filled('message_id')) {
+            $request->validate([
+                'message_id' => ['required', 'string'],
+                'reason' => ['nullable', 'string', 'max:1000'],
+            ]);
 
+            $log = EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
+        }
+
+        if (! $log) {
+            return response()->json(['success' => false, 'message' => 'Missing bounce identifier.'], 422);
+        }
+
+        $wasBounced = $log->status === 'bounced' || ! is_null($log->bounced_at);
+
+        if (! $wasBounced) {
             $log->update([
                 'status' => 'bounced',
-                'error_message' => $validated['reason'] ?? null
+                'bounced_at' => now(),
+                'error_message' => $request->input('reason'),
             ]);
 
             DB::table('bounces')->insert([
                 'email_log_id' => $log->id,
                 'campaign_id' => $log->campaign_id,
                 'user_id' => $log->user_id,
-                'reason' => $validated['reason'] ?? null,
+                'reason' => $request->input('reason'),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -217,12 +124,12 @@ class TrackingController extends Controller
             DB::table('campaigns')
                 ->where('id', $log->campaign_id)
                 ->increment('total_bounced');
+        }
 
-            if ($log->recipient_email) {
-                Subscriber::where('user_id', $log->user_id)
-                    ->where('email', $log->recipient_email)
-                    ->update(['status' => 'bounced']);
-            }
+        if ($log->recipient_email) {
+            Subscriber::where('user_id', $log->user_id)
+                ->where('email', $log->recipient_email)
+                ->update(['status' => 'bounced']);
         }
 
         return response()->json(['success' => true]);
@@ -234,10 +141,6 @@ class TrackingController extends Controller
         $userId = $request->integer('user_id');
 
         if ($email && $userId) {
-            Subscriber::where('user_id', $userId)->where('email', $email)->update([
-                'status' => 'unsubscribed',
-                'unsubscribed_at' => now(),
-            ]);
             Subscriber::where('user_id', $userId)
                 ->where('email', $email)
                 ->update([
@@ -263,14 +166,14 @@ class TrackingController extends Controller
         $pixel = '<img src="' . url('/track/open/' . $logId . '.png') . '" width="1" height="1" style="display:none;" alt="" />';
 
         if (stripos($htmlContent, '</body>') !== false) {
-            $htmlContent = str_ireplace('</body>', $pixel.'</body>', $htmlContent);
+            $htmlContent = str_ireplace('</body>', $pixel . '</body>', $htmlContent);
         } else {
             $htmlContent .= $pixel;
         }
 
-        return preg_replace_callback('/<a\s+([^>]*href=["\']([^"\']+)["\'][^>]*)>/i', function ($matches) use ($logId) {
+        return preg_replace_callback('/<a\s+([^>]*href=["\']([^"\']+)["\'][^>]*)>/i', function (array $matches) use ($logId): string {
             $originalUrl = $matches[2];
-            $trackingUrl = url('/track/click/'.$logId.'?url='.urlencode($originalUrl));
+            $trackingUrl = url('/track/click/' . $logId . '?url=' . urlencode($originalUrl));
 
             return str_replace($originalUrl, $trackingUrl, $matches[0]);
         }, $htmlContent) ?? $htmlContent;
