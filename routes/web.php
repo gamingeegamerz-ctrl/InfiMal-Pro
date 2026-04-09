@@ -57,6 +57,11 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+
+    Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
+    Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
+
 
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
     Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');

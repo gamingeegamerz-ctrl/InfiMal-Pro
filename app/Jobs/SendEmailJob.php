@@ -64,6 +64,8 @@ class SendEmailJob implements ShouldQueue
 
         }
 
+        }
+
         $messageId = 'job-'.$emailJob->id;
 
         $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
