@@ -63,6 +63,7 @@ class EnforceOnboardingState
                 'billing.checkout',
                 'payment.success',
                 'payment.cancel',
+                'google.complete.*',
             ]);
         }
 
@@ -72,6 +73,7 @@ class EnforceOnboardingState
                 'billing',
                 'payment',
                 'payment.cancel',
+                'google.complete.*',
             ]);
         }
 

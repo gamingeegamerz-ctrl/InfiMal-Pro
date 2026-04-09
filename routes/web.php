@@ -57,6 +57,21 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
+
+    Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
+    Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
+
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
+    Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
+    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
+
+    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
+    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
+
+Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
 
     Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
@@ -109,6 +124,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('verification.send');
 });
 
+Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
 Route::middleware(['auth', 'flow.state', 'paid.access'])->group(function (): void {
 Route::middleware(['auth', 'paid.access'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

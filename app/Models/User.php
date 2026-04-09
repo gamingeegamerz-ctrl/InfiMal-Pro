@@ -18,6 +18,7 @@ class User extends Authenticatable
         'email',
         'password',
         'google_id',
+        'google_password_set',
         'payment_status',
         'is_paid',
         'paid_at',
@@ -67,6 +68,7 @@ class User extends Authenticatable
         'otp_last_sent_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
+        'google_password_set' => 'boolean',
         'otp_failed_attempts' => 'integer',
     ];
 
