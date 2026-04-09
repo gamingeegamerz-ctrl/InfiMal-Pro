@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EmailSendController;
 use App\Http\Controllers\PostalWebhookController;
 use App\Http\Controllers\PaddleWebhookController;
+use App\Http\Controllers\SenderDomainController;
 
 use App\Models\SMTPAccount;
 use App\Models\EmailLimit;
@@ -100,6 +101,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Email sending
     Route::post('/emails/send', [EmailSendController::class, 'send']);
+
+
+    Route::get('/domains', [SenderDomainController::class, 'index']);
+    Route::post('/domains', [SenderDomainController::class, 'store']);
+    Route::post('/domains/{domain}/verify', [SenderDomainController::class, 'verify']);
+    Route::delete('/domains/{domain}', [SenderDomainController::class, 'destroy']);
 
     // Limits
     Route::get('/limits', function (Request $request) {

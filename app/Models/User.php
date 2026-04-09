@@ -18,6 +18,7 @@ class User extends Authenticatable
         'email',
         'password',
         'google_id',
+        'google_password_set',
         'payment_status',
         'is_paid',
         'paid_at',
@@ -37,6 +38,14 @@ class User extends Authenticatable
         'otp_code',
         'otp_expires_at',
         'otp_verified_at',
+        'accepted_terms_at',
+        'last_login_at',
+        'campaign_count',
+        'email_sent',
+        'otp_last_sent_at',
+        'otp_locked_until',
+        'otp_failed_attempts',
+        'onboarding_step',
     ];
 
     protected $hidden = [
@@ -53,8 +62,14 @@ class User extends Authenticatable
         'license_expires_at' => 'datetime',
         'otp_expires_at' => 'datetime',
         'otp_verified_at' => 'datetime',
+        'accepted_terms_at' => 'datetime',
+        'last_login_at' => 'datetime',
+        'otp_locked_until' => 'datetime',
+        'otp_last_sent_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
+        'google_password_set' => 'boolean',
+        'otp_failed_attempts' => 'integer',
     ];
 
     // =================== RELATIONSHIPS ===================
@@ -84,6 +99,12 @@ class User extends Authenticatable
         return $this->hasMany(Subscriber::class, 'user_id');
     }
 
+
+    public function senderDomains(): HasMany
+    {
+        return $this->hasMany(SenderDomain::class, 'user_id');
+    }
+
     public function smtpAccounts(): HasMany
     {
         return $this->hasMany(SMTPAccount::class, 'user_id');
@@ -109,6 +130,29 @@ class User extends Authenticatable
     }
 
     // =================== PAYMENT & ACCESS METHODS ===================
+
+    public function getAccessStateAttribute(): string
+    {
+        if (! $this->exists) {
+            return 'NOT_REGISTERED';
+        }
+
+        if (! $this->hasPaid()) {
+            return 'REGISTERED_NOT_PAID';
+        }
+
+        if (! $this->otp_verified_at) {
+            return 'PAID_NOT_VERIFIED';
+        }
+
+        return 'ACTIVE_USER';
+    }
+
+    public function isInactive(int $days = 14): bool
+    {
+        return $this->last_login_at ? $this->last_login_at->lt(now()->subDays($days)) : true;
+    }
+
     
     /**
      * Check if user has paid (Admin always returns true)
@@ -139,18 +183,11 @@ class User extends Authenticatable
             return $this->licenses()
                 ->where('license_key', $this->license_key)
                 ->where('status', 'active')
-                ->where(function($query) {
-                    $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
                 ->exists();
         }
 
         // Check via activeLicense relationship
-        return $this->activeLicense()
-            ->where(function($query) {
-                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
-            })
-            ->exists();
+        return $this->activeLicense()->exists();
     }
 
     /**
