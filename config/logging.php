@@ -55,6 +55,7 @@ return [
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks,alerts')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks')),
             'ignore_exceptions' => false,
         ],
 

@@ -17,8 +17,13 @@ return [
         'dkim_private_key' => env('MAIL_DKIM_PRIVATE_KEY', ''),
         'dmarc' => env('MAIL_DMARC_RECORD', ''),
     ],
+    'otp' => [
+        'from_address' => env('OTP_FROM_ADDRESS', 'noreply@yourdomain.com'),
+        'from_name' => env('OTP_FROM_NAME', env('APP_NAME', 'InfiMal')) ,
+    ],
     'alerts' => [
         'ops_email' => env('OPS_ALERT_EMAIL'),
         'enabled' => (bool) env('OPS_ALERTS_ENABLED', true),
     ],
 ];
+
