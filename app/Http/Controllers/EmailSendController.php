@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Services\LimitService;
-use App\Jobs\SendEmailJob;
+use App\Services\EmailDispatcher;
 use App\Models\License;
 use App\Models\SMTPAccount;
 
@@ -79,10 +79,15 @@ class EmailSendController extends Controller
             // LIMIT + SPIKE CHECK
             $this->limitService->canSend($user->id, $count);
 
-            // Dispatch queue job
-            SendEmailJob::dispatch($user, $emails);
+            foreach ($emails as $email) {
+                EmailDispatcher::dispatch([
+                    'user_id' => $user->id,
+                    'to' => $email['to'],
+                    'subject' => $email['subject'],
+                    'body' => $email['body'],
+                ]);
+            }
 
-            // Register send attempt
             $this->limitService->registerSend($user->id, $count);
 
             return response()->json([

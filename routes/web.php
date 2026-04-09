@@ -5,16 +5,19 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\ListController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SmtpController;
+use App\Http\Controllers\SenderDomainController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TrackingController;
+use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
-// =================== PUBLIC ROUTES ===================
 Route::view('/', 'public.index')->name('home');
 Route::view('/pricing', 'pricing')->name('pricing');
 Route::view('/features', 'features')->name('features');
@@ -26,12 +29,11 @@ Route::view('/security', 'security')->name('security');
 Route::view('/refund', 'refund')->name('refund');
 Route::view('/help-center', 'help-center')->name('help.center');
 
-// =================== GUEST ROUTES ===================
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:6,1');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
     Route::get('/forgot-password', fn() => view('auth.forgot-password'))->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('password.email');
     Route::get('/reset-password/{token}', fn($token) => view('auth.reset-password', ['token' => $token]))->name('password.reset');
@@ -40,50 +42,44 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 });
 
-// =================== AUTH ROUTES ===================
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-// =================== TRACKING ROUTES (Public) ===================
 Route::get('/track/open/{id}.png', [TrackingController::class, 'openById'])->name('track.open.id');
 Route::get('/track/click/{id}', [TrackingController::class, 'clickById'])->name('track.click.id');
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 
-// =================== WEBHOOKS (No CSRF) ===================
-Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])
+Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->middleware('throttle:webhook')
     ->name('payment.webhook.paypal')
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->middleware('throttle:webhook')
+    ->name('billing.webhook.paypal')
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
-// =================== AUTH (Verified Users) ===================
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'flow.state'])->group(function (): void {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
+    Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
+    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
+
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
-    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->name('otp.verify.resend');
+    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
+
+    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('verification.send');
 });
 
-// =================== PAID ACCESS ROUTES ===================
-Route::middleware(['auth', 'paid.access'])->group(function () {
-    
-    // Billing & Payment
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
-        ->name('billing.checkout')
-        ->middleware('throttle:10,1');
-    Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->name('billing.webhook.paypal');
-    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
-    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-    Route::redirect('/payment', '/billing')->name('payment');
-    
-    // Dashboard
+Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
-    // Campaigns
+
     Route::resource('campaigns', CampaignController::class);
     Route::post('/campaigns/{campaign}/send', [CampaignController::class, 'send'])->name('campaigns.send');
     Route::get('/campaigns/{campaign}/preview', [CampaignController::class, 'preview'])->name('campaigns.preview');
     Route::get('/campaigns/{campaign}/analytics', [CampaignController::class, 'analytics'])->name('campaigns.analytics');
-    
-    // Subscribers
+
     Route::get('/subscribers', [SubscriberController::class, 'index'])->name('subscribers.index');
     Route::post('/subscribers', [SubscriberController::class, 'store'])->name('subscribers.store');
     Route::post('/subscribers/import', [SubscriberController::class, 'import'])->name('subscribers.import');
@@ -91,51 +87,41 @@ Route::middleware(['auth', 'paid.access'])->group(function () {
     Route::get('/subscribers/{id}/edit', [SubscriberController::class, 'edit'])->name('subscribers.edit');
     Route::put('/subscribers/{id}', [SubscriberController::class, 'update'])->name('subscribers.update');
     Route::delete('/subscribers/{id}', [SubscriberController::class, 'destroy'])->name('subscribers.destroy');
-    
-    // Lists
+
     Route::get('/lists', [ListController::class, 'index'])->name('lists.index');
     Route::post('/lists', [ListController::class, 'store'])->name('lists.store');
     Route::put('/lists/{id}', [ListController::class, 'update'])->name('lists.update');
     Route::delete('/lists/{id}', [ListController::class, 'destroy'])->name('lists.destroy');
-    
-    // Messages
+
     Route::resource('messages', MessageController::class)->only(['index', 'create', 'store']);
-    
-    // SMTP Management
+
     Route::resource('smtp', SmtpController::class);
+
+    Route::prefix('domains')->name('domains.')->group(function (): void {
+        Route::get('/', [SenderDomainController::class, 'index'])->name('index');
+        Route::post('/', [SenderDomainController::class, 'store'])->name('store');
+        Route::post('/{domain}/verify', [SenderDomainController::class, 'verify'])->name('verify');
+        Route::delete('/{domain}', [SenderDomainController::class, 'destroy'])->name('destroy');
+    });
+
     Route::post('/smtp/{smtp}/test', [SmtpController::class, 'test'])->name('smtp.test');
     Route::post('/smtp/{smtp}/verify', [SmtpController::class, 'verify'])->name('smtp.verify');
     Route::post('/smtp/{smtp}/set-default', [SmtpController::class, 'setDefault'])->name('smtp.set-default');
     Route::post('/smtp/{smtp}/toggle', [SmtpController::class, 'toggle'])->name('smtp.toggle');
-    
-    // Profile
-    Route::prefix('profile')->name('profile.')->group(function () {
+
+    Route::prefix('profile')->name('profile.')->group(function (): void {
         Route::get('/', [ProfileController::class, 'index'])->name('index');
         Route::post('/update', [ProfileController::class, 'update'])->name('update');
         Route::post('/change-password', [ProfileController::class, 'changePassword'])->name('change-password');
         Route::get('/settings', [ProfileController::class, 'settings'])->name('settings');
     });
-    
-    // Analytics
-    Route::prefix('analytics')->name('analytics.')->group(function () {
+
+    Route::prefix('analytics')->name('analytics.')->group(function (): void {
         Route::get('/', [AnalyticsController::class, 'index'])->name('index');
         Route::get('/campaigns', [AnalyticsController::class, 'campaigns'])->name('campaigns');
         Route::get('/subscribers', [AnalyticsController::class, 'subscribers'])->name('subscribers');
         Route::get('/reports', [AnalyticsController::class, 'reports'])->name('reports');
         Route::get('/export', [AnalyticsController::class, 'export'])->name('export');
-    });
-    
-    // Extra Pages
-    Route::get('/templates', fn() => view('pages.templates'))->name('templates');
-    Route::get('/automation', fn() => view('pages.automation'))->name('automation');
-    
-    // API Routes (Internal)
-    Route::prefix('api')->name('api.')->group(function () {
-        Route::get('/limits', [DashboardController::class, 'getLimits'])->name('limits');
-        Route::get('/stats', [DashboardController::class, 'getStats'])->name('stats');
-        Route::get('/recent-activity', [DashboardController::class, 'getRecentActivity'])->name('recent-activity');
-        Route::get('/smtp/credentials', [SmtpController::class, 'getCredentials'])->name('smtp.credentials');
-        Route::get('/smtp/health', [SmtpController::class, 'health'])->name('smtp.health');
     });
 });
 
