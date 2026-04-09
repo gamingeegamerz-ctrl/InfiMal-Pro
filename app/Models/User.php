@@ -97,6 +97,12 @@ class User extends Authenticatable
         return $this->hasMany(Subscriber::class, 'user_id');
     }
 
+
+    public function senderDomains(): HasMany
+    {
+        return $this->hasMany(SenderDomain::class, 'user_id');
+    }
+
     public function smtpAccounts(): HasMany
     {
         return $this->hasMany(SMTPAccount::class, 'user_id');

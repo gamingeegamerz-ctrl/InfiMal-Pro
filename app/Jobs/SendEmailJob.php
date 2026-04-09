@@ -6,6 +6,7 @@ use App\Http\Controllers\TrackingController;
 use App\Models\EmailJob;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
+use App\Models\SenderDomain;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;

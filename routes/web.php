@@ -11,6 +11,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SmtpController;
+use App\Http\Controllers\SenderDomainController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -129,6 +130,14 @@ Route::middleware(['auth', 'paid.access'])->group(function (): void {
     Route::resource('messages', MessageController::class)->only(['index', 'create', 'store']);
 
     Route::resource('smtp', SmtpController::class);
+
+    Route::prefix('domains')->name('domains.')->group(function (): void {
+        Route::get('/', [SenderDomainController::class, 'index'])->name('index');
+        Route::post('/', [SenderDomainController::class, 'store'])->name('store');
+        Route::post('/{domain}/verify', [SenderDomainController::class, 'verify'])->name('verify');
+        Route::delete('/{domain}', [SenderDomainController::class, 'destroy'])->name('destroy');
+    });
+
     Route::post('/smtp/{smtp}/test', [SmtpController::class, 'test'])->name('smtp.test');
     Route::post('/smtp/{smtp}/verify', [SmtpController::class, 'verify'])->name('smtp.verify');
     Route::post('/smtp/{smtp}/set-default', [SmtpController::class, 'setDefault'])->name('smtp.set-default');

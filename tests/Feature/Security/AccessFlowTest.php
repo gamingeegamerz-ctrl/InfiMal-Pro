@@ -31,6 +31,7 @@ class AccessFlowTest extends TestCase
         License::create([
             'user_id' => $user->id,
             'license_key' => 'INFIMAL-TEST-KEY-123456',
+            'plan_type' => 'InfiMal Pro',
             'plan_type' => 'InfiMal Pro Lifetime',
             'price' => 299,
             'duration_days' => 0,
