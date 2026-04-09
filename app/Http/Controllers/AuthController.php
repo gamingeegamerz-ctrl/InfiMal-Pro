@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class AuthController extends Controller
@@ -29,23 +30,26 @@ class AuthController extends Controller
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            Log::channel('security')->warning('Login failed', [
+                'email' => $credentials['email'],
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
             return back()->withErrors(['email' => 'Invalid credentials provided.'])->onlyInput('email');
         }
 
         $request->session()->regenerate();
         $user = $request->user();
 
-        // Payment check
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        Log::channel('security')->info('Login succeeded', ['user_id' => $user->id, 'ip' => $request->ip()]);
+
         if (! $user->hasPaid()) {
             return redirect()->route('payment');
         }
 
-        // License check
-        if (! $user->hasActiveLicense()) {
-            return redirect()->route('billing');
-        }
-
-        // OTP check
         if (! $user->otp_verified_at) {
             return redirect()->route('otp.verify.form');
         }
@@ -69,6 +73,9 @@ class AuthController extends Controller
             'is_paid' => false,
             'plan_name' => 'InfiMal Pro',
             'license_status' => 'inactive',
+            'campaign_count' => 0,
+            'email_sent' => 0,
+            'onboarding_step' => 'payment_required',
         ]);
 
         Auth::login($user);
