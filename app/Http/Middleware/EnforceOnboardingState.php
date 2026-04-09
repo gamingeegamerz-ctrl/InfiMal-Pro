@@ -16,6 +16,14 @@ class EnforceOnboardingState
             return $next($request);
         }
 
+        if ($user->onboarding_step === 'google_profile_required') {
+            if (! $request->routeIs(['google.onboarding.*', 'logout'])) {
+                return redirect()->route('google.onboarding.form')->with('error', 'Complete your Google signup first.');
+            }
+
+            return $next($request);
+        }
+
         $state = $user->access_state;
         $sessionStep = (string) $request->session()->get('onboarding_step', '');
         $canonicalStep = $this->stepForState($state);

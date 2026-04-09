@@ -48,6 +48,31 @@ class SendEmailJob implements ShouldQueue
             return;
         }
 
+
+        $fromDomain = strtolower((string) substr(strrchr((string) $smtp->from_address, '@'), 1));
+        if ($fromDomain !== '') {
+            $domainVerified = SenderDomain::where('user_id', $emailJob->user_id)
+                ->where('domain', $fromDomain)
+                ->where('is_verified', true)
+                ->exists();
+
+            if (! $domainVerified) {
+                $emailJob->update(['status' => 'failed', 'error_message' => 'Sender domain is not verified.']);
+                return;
+            }
+        }
+
+        $messageId = 'job-'.$emailJob->id;
+
+        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
+        if ($existingDelivered) {
+            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+            return;
+        }
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
         $messageId = 'job-'.$emailJob->id;
 
         $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();

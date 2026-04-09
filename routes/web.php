@@ -58,6 +58,10 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+
+    Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
+    Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
+
     Route::get('/payment', [BillingController::class, 'index'])->name('payment');
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');

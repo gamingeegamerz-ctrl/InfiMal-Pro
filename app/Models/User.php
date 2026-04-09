@@ -182,6 +182,7 @@ class User extends Authenticatable
                 ->exists();
         }
 
+        // Check via activeLicense relationship
         return $this->activeLicense()->exists();
     }
 
