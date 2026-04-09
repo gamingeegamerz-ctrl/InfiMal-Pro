@@ -18,6 +18,7 @@ class User extends Authenticatable
         'email',
         'password',
         'google_id',
+        'google_password_set',
         'payment_status',
         'is_paid',
         'paid_at',
@@ -67,6 +68,7 @@ class User extends Authenticatable
         'otp_last_sent_at' => 'datetime',
         'is_paid' => 'boolean',
         'is_admin' => 'boolean',
+        'google_password_set' => 'boolean',
         'otp_failed_attempts' => 'integer',
     ];
 
@@ -171,13 +173,11 @@ class User extends Authenticatable
      */
     public function hasActiveLicense(): bool
     {
-        // Admin always has active license
         if ($this->is_admin) {
             return true;
         }
-        
-        // Check via license_key column
-        if (!empty($this->license_key)) {
+
+        if (! empty($this->license_key)) {
             return $this->licenses()
                 ->where('license_key', $this->license_key)
                 ->where('status', 'active')

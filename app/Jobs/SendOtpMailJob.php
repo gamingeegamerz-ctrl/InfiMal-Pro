@@ -35,6 +35,11 @@ class SendOtpMailJob implements ShouldQueue
             return;
         }
 
+        Mail::mailer('otp_smtp')->to($user->email)->send(
+            (new PaidWelcomeOtpMail($user, $this->otp))->from(
+                config('infimal.otp.from_address', 'noreply@yourdomain.com'),
+                config('infimal.otp.from_name', config('app.name', 'InfiMal'))
+            )
         Mail::to($user->email)->send(
             (new PaidWelcomeOtpMail($user, $this->otp))->from('noreply@yourdomain.com', config('app.name', 'InfiMal'))
         );
