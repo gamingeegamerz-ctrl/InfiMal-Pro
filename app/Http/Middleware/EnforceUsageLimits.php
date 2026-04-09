@@ -29,6 +29,8 @@ class EnforceUsageLimits
         }
 
         if ($request->is('api/emails/send') && $this->limits->emailLimitExceeded($user)) {
+        if (($request->routeIs('campaigns.send') || $request->is('api/emails/send')) && $this->limits->emailLimitExceeded($user)) {
+        if ($request->routeIs(['api.limits', 'api.stats']) && $this->limits->emailLimitExceeded($user)) {
             return response('Daily email limit reached.', Response::HTTP_TOO_MANY_REQUESTS);
         }
 

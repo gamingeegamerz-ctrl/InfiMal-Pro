@@ -3,6 +3,7 @@
 use App\Http\Middleware\CheckPaidUser;
 use App\Http\Middleware\EnsurePaidAccess;
 use App\Http\Middleware\EnforceOnboardingState;
+use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\EnforceUsageLimits;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'paid' => CheckPaidUser::class,
             'paid.access' => EnsurePaidAccess::class,
             'flow.state' => EnforceOnboardingState::class,
+            'subscription.active' => EnsureActiveSubscription::class,
             'usage.limits' => EnforceUsageLimits::class,
         ]);
     })
