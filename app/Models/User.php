@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\Auth\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -219,4 +220,13 @@ class User extends Authenticatable
             && $this->hasActiveLicense()
             && (!$this->otpRequired() || !is_null($this->otp_verified_at));
     }
+
+    /**
+     * Send the password reset notification email.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 }
+

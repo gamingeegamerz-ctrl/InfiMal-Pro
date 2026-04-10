@@ -86,6 +86,10 @@
                             class="w-full rainbow-gradient text-white py-3 px-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition">
                         Sign In
                     </button>
+
+                    <div class="text-right">
+                        <a href="{{ route('password.request') }}" class="text-sm text-blue-600 font-medium hover:text-blue-700">Forgot password?</a>
+                    </div>
                 </div>
             </form>
 
