@@ -58,3 +58,14 @@ test('password can be reset with valid token', function () {
         return true;
     });
 });
+
+
+test('reset password request response is generic for unknown emails', function () {
+    $response = $this->from('/forgot-password')->post('/forgot-password', [
+        'email' => 'unknown-user@example.com',
+    ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('status', 'If an account exists for this email, a reset link has been sent.');
+});
