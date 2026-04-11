@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CampaignAnalytics;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,34 @@ class AnalyticsService
         ];
     }
 
+    public function dashboard(int $userId): array
+    {
+        $campaign = CampaignAnalytics::whereHas('campaign', fn ($q) => $q->where('user_id', $userId));
+        $smtpBase = EmailLog::where('user_id', $userId);
+
+        $campaignStats = [
+            'sent' => (clone $campaign)->where('event_type', 'sent')->count(),
+            'delivered' => (clone $campaign)->where('event_type', 'delivered')->count(),
+            'bounce' => (clone $campaign)->where('event_type', 'bounced')->count(),
+            'complaint' => (clone $campaign)->whereIn('event_type', ['complaint', 'spam_complaint'])->count(),
+            'click' => (clone $campaign)->where('event_type', 'clicked')->count(),
+            'reply' => (clone $campaign)->where('event_type', 'reply')->count(),
+        ];
+
+        $total = (clone $smtpBase)->count();
+        $successful = (clone $smtpBase)->whereIn('status', ['sent', 'delivered'])->count();
+
+        return [
+            'campaign_stats' => $campaignStats,
+            'smtp_stats' => [
+                'reputation_score' => round((float) SMTPAccount::ownedBy($userId)->avg('reputation_score'), 2),
+                'success_rate' => $total > 0 ? round(($successful / $total) * 100, 2) : 0.0,
+                'provider_performance' => $this->providerPerformance($userId),
+            ],
+            'engagement_score' => $this->engagementScoreByCampaign($userId),
+        ];
+    }
+
     public function adminPerUserStats()
     {
         return DB::table('users')
@@ -35,5 +64,34 @@ class AnalyticsService
                 $row->smtp_count = SMTPAccount::where('user_id', $row->user_id)->count();
                 return $row;
             });
+    }
+
+    private function providerPerformance(int $userId)
+    {
+        return DB::table('email_logs as logs')
+            ->leftJoin('smtps', 'smtps.id', '=', 'logs.smtp_id')
+            ->where('logs.user_id', $userId)
+            ->selectRaw('COALESCE(smtps.host, "unknown") as provider')
+            ->selectRaw('COUNT(logs.id) as total')
+            ->selectRaw("SUM(CASE WHEN logs.status IN ('sent','delivered') THEN 1 ELSE 0 END) as successful")
+            ->groupBy('provider')
+            ->get()
+            ->map(fn ($row) => [
+                'provider' => $row->provider,
+                'success_rate' => $row->total > 0 ? round(($row->successful / $row->total) * 100, 2) : 0,
+                'volume' => (int) $row->total,
+            ]);
+    }
+
+    private function engagementScoreByCampaign(int $userId)
+    {
+        return DB::table('campaign_analytics')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_analytics.campaign_id')
+            ->where('campaigns.user_id', $userId)
+            ->select('campaign_analytics.campaign_id')
+            ->selectRaw("SUM(CASE WHEN event_type = 'reply' THEN 5 WHEN event_type = 'clicked' THEN 3 WHEN event_type IN ('opened','open') THEN 1 ELSE 0 END) as score")
+            ->groupBy('campaign_analytics.campaign_id')
+            ->orderByDesc('score')
+            ->get();
     }
 }

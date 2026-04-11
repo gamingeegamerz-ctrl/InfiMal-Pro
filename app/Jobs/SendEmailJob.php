@@ -6,12 +6,13 @@ use App\Http\Controllers\TrackingController;
 use App\Models\EmailJob;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
-use App\Models\SenderDomain;
+use App\Services\SchedulerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -31,10 +32,15 @@ class SendEmailJob implements ShouldQueue
         $this->onQueue('emails');
     }
 
-    public function handle(): void
+    public function handle(SchedulerService $scheduler): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
         if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
+            return;
+        }
+
+        if ($emailJob->scheduled_at && $emailJob->scheduled_at->isFuture()) {
+            $this->release($emailJob->scheduled_at->diffInSeconds(now()) + 1);
             return;
         }
 
@@ -48,53 +54,12 @@ class SendEmailJob implements ShouldQueue
             return;
         }
 
-
-        $fromDomain = strtolower((string) substr(strrchr((string) $smtp->from_address, '@'), 1));
-        if ($fromDomain !== '') {
-            $domainVerified = SenderDomain::where('user_id', $emailJob->user_id)
-                ->where('domain', $fromDomain)
-                ->where('is_verified', true)
-                ->exists();
-
-            if (! $domainVerified) {
-                $emailJob->update(['status' => 'failed', 'error_message' => 'Sender domain is not verified.']);
-                return;
-            }
-        }
-
-        }
-
-        }
-
-        }
-
-        $messageId = 'job-'.$emailJob->id;
-
-        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
-        if ($existingDelivered) {
-            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+        if (! $scheduler->enforceBeforeSend($emailJob, $smtp)) {
+            $this->release(60);
             return;
         }
 
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-        $messageId = 'job-'.$emailJob->id;
-
-        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
-        if ($existingDelivered) {
-            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
-            return;
-        }
-
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-        $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
-
+        $messageId = 'job-'.$emailJob->id.'-'.now()->timestamp;
         $emailLog = EmailLog::create([
             'user_id' => $emailJob->user_id,
             'campaign_id' => $emailJob->campaign_id,
@@ -104,30 +69,22 @@ class SendEmailJob implements ShouldQueue
             'subject' => $emailJob->subject,
             'status' => 'pending',
             'message_id' => $messageId,
-            ]
-        ]
-        );
-            'message_id' => $messageId,
         ]);
 
-        $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
+        $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e((string) $emailJob->body)), $emailLog->id);
 
-        config([
-            'mail.default' => 'smtp',
-            'mail.mailers.smtp.host' => $smtp->host,
-            'mail.mailers.smtp.port' => $smtp->port,
-            'mail.mailers.smtp.encryption' => $smtp->encryption === 'none' ? null : $smtp->encryption,
-            'mail.mailers.smtp.username' => $smtp->username,
-            'mail.mailers.smtp.password' => $smtp->password,
-            'mail.from.address' => $smtp->from_address,
-            'mail.from.name' => $smtp->from_name ?: 'InfiMal',
-        ]);
+        Config::set('mail.default', 'smtp');
+        Config::set('mail.mailers.smtp.host', $smtp->host);
+        Config::set('mail.mailers.smtp.port', $smtp->port);
+        Config::set('mail.mailers.smtp.encryption', $smtp->encryption === 'none' ? null : $smtp->encryption);
+        Config::set('mail.mailers.smtp.username', $smtp->username);
+        Config::set('mail.mailers.smtp.password', $smtp->password);
+        Config::set('mail.from.address', $smtp->from_address ?: $emailJob->from_email);
+        Config::set('mail.from.name', $smtp->from_name ?: 'InfiMal');
 
-        Mail::html($htmlBody, function ($message) use ($emailJob, $messageId): void {
+        Mail::html($htmlBody, function ($message) use ($emailJob): void {
             $message->to($emailJob->to_email)
-                ->subject($emailJob->subject)
-                ->getHeaders()
-                ->addTextHeader('Message-ID', $messageId);
+                ->subject($emailJob->subject);
         });
 
         $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);

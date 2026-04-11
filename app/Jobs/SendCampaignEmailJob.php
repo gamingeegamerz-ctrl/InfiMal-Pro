@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\EmailJob;
 use App\Models\SMTPAccount;
 use App\Services\SendEngineService;
+use App\Services\SchedulerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,10 +29,15 @@ class SendCampaignEmailJob implements ShouldQueue
         $this->emailJobId = $emailJobId;
     }
 
-    public function handle(SendEngineService $engine): void
+    public function handle(SendEngineService $engine, SchedulerService $scheduler): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
         if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
+            return;
+        }
+
+        if ($emailJob->scheduled_at && $emailJob->scheduled_at->isFuture()) {
+            $this->release($emailJob->scheduled_at->diffInSeconds(now()) + 1);
             return;
         }
 
@@ -47,9 +53,17 @@ class SendCampaignEmailJob implements ShouldQueue
             return;
         }
 
+        if (! $scheduler->enforceBeforeSend($emailJob, $smtp)) {
+            $this->release(60);
+            return;
+        }
+
         $quotaCheck = $engine->canSendNow($smtp);
         if (! $quotaCheck['allowed']) {
-            $emailJob->update(['status' => 'queued']);
+            $emailJob->update([
+                'status' => 'queued',
+                'scheduled_at' => now()->addSeconds(max(60, (int) $quotaCheck['delay'])),
+            ]);
             $this->release($quotaCheck['delay']);
             return;
         }

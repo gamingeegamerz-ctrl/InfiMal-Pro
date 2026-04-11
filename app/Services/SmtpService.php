@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SMTPAccount;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 
@@ -27,7 +28,7 @@ class SmtpService
             $smtp->is_default = true;
         }
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $smtp->password = $data['password'];
         }
 
@@ -44,6 +45,15 @@ class SmtpService
 
     public function testConnection(SMTPAccount $smtp, string $toEmail): array
     {
+        $probeKey = 'smtp_probe_next_'.$smtp->id;
+        $nextAllowed = Cache::get($probeKey);
+
+        if ($nextAllowed && now()->lt($nextAllowed)) {
+            return ['success' => false, 'message' => 'Probe cooldown active. Try again later to avoid repeated probing patterns.'];
+        }
+
+        $target = $this->rotateProbeInbox($smtp, $toEmail);
+
         Config::set('mail.default', 'smtp');
         Config::set('mail.mailers.smtp.host', $smtp->host);
         Config::set('mail.mailers.smtp.port', $smtp->port);
@@ -54,13 +64,32 @@ class SmtpService
         Config::set('mail.from.name', $smtp->from_name ?: 'InfiMal');
 
         try {
-            Mail::raw('SMTP connection test from InfiMal.', function ($message) use ($toEmail) {
-                $message->to($toEmail)->subject('InfiMal SMTP Test');
+            Mail::raw('SMTP connection test from InfiMal.', function ($message) use ($target) {
+                $message->to($target)->subject('InfiMal SMTP Test');
             });
 
-            return ['success' => true, 'message' => 'SMTP test email sent successfully.'];
+            Cache::put($probeKey, now()->addMinutes(15), now()->addMinutes(15));
+
+            return ['success' => true, 'message' => 'SMTP test email sent successfully to rotated probe inbox.'];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    private function rotateProbeInbox(SMTPAccount $smtp, string $fallback): string
+    {
+        $pool = array_values(array_unique(array_filter([
+            $fallback,
+            config('mail.from.address'),
+            'deliverability-check+1@infimal.local',
+            'deliverability-check+2@infimal.local',
+        ])));
+
+        $indexKey = 'smtp_probe_inbox_index_'.$smtp->id;
+        $index = (int) Cache::get($indexKey, 0);
+        $target = $pool[$index % count($pool)] ?? $fallback;
+        Cache::put($indexKey, ($index + 1) % max(1, count($pool)), now()->addDay());
+
+        return $target;
     }
 }

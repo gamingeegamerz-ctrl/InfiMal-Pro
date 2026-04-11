@@ -23,6 +23,7 @@ class EmailJob extends Model
         'from_name',
         'reply_to',
         'status',
+        'scheduled_at',
         'sent_at',
         'failed_at',
         'error_message',
@@ -31,6 +32,7 @@ class EmailJob extends Model
     ];
 
     protected $casts = [
+        'scheduled_at' => 'datetime',
         'sent_at' => 'datetime',
         'failed_at' => 'datetime',
         'retry_count' => 'integer',
@@ -84,6 +86,18 @@ class EmailJob extends Model
     public function scopeQueued($query)
     {
         return $query->where('status', 'queued');
+    }
+
+
+    /**
+     * Scope: Jobs ready for delivery time
+     */
+    public function scopeReadyToSend($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('scheduled_at')
+                ->orWhere('scheduled_at', '<=', now());
+        });
     }
 
     /**

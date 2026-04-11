@@ -12,3 +12,7 @@ Schedule::command('infimal:backup-db')
     ->dailyAt('02:15')
     ->withoutOverlapping()
     ->onOneServer();
+
+Schedule::command('infimal:dispatch-scheduled-emails --limit=500')
+    ->everyMinute()
+    ->withoutOverlapping();
