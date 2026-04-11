@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use App\Services\UserReputationService;
 
 class SendEmailJob implements ShouldQueue
 {
@@ -28,10 +29,10 @@ class SendEmailJob implements ShouldQueue
 
     public function __construct(public int $emailJobId)
     {
-        $this->onQueue('emails');
+        $this->onQueue('user_email_jobs');
     }
 
-    public function handle(): void
+    public function handle(UserReputationService $reputationService): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
         if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
@@ -44,10 +45,10 @@ class SendEmailJob implements ShouldQueue
             ->first();
 
         if (! $smtp) {
-            $emailJob->update(['status' => 'failed', 'error_message' => 'Active SMTP not configured']);
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Active USER SMTP not configured']);
+
             return;
         }
-
 
         $fromDomain = strtolower((string) substr(strrchr((string) $smtp->from_address, '@'), 1));
         if ($fromDomain !== '') {
@@ -58,57 +59,34 @@ class SendEmailJob implements ShouldQueue
 
             if (! $domainVerified) {
                 $emailJob->update(['status' => 'failed', 'error_message' => 'Sender domain is not verified.']);
+
                 return;
             }
         }
 
-        }
+        $messageId = 'user-job-'.$emailJob->id;
+        $existingDelivered = EmailLog::where('message_id', $messageId)
+            ->whereIn('status', ['sent', 'delivered'])
+            ->exists();
 
-        }
-
-        }
-
-        $messageId = 'job-'.$emailJob->id;
-
-        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
         if ($existingDelivered) {
             $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+
             return;
         }
 
         $emailLog = EmailLog::updateOrCreate(
             ['message_id' => $messageId],
             [
-        $messageId = 'job-'.$emailJob->id;
-
-        $existingDelivered = EmailLog::where('message_id', $messageId)->whereIn('status', ['sent', 'delivered'])->exists();
-        if ($existingDelivered) {
-            $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
-            return;
-        }
-
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-        $emailLog = EmailLog::updateOrCreate(
-            ['message_id' => $messageId],
-            [
-        $messageId = 'job-'.$emailJob->id.'-'.Str::uuid();
-
-        $emailLog = EmailLog::create([
-            'user_id' => $emailJob->user_id,
-            'campaign_id' => $emailJob->campaign_id,
-            'smtp_id' => $smtp->id,
-            'to_email' => $emailJob->to_email,
-            'recipient_email' => $emailJob->to_email,
-            'subject' => $emailJob->subject,
-            'status' => 'pending',
-            'message_id' => $messageId,
+                'user_id' => $emailJob->user_id,
+                'campaign_id' => $emailJob->campaign_id,
+                'smtp_id' => $smtp->id,
+                'to_email' => $emailJob->to_email,
+                'recipient_email' => $emailJob->to_email,
+                'subject' => $emailJob->subject,
+                'status' => 'pending',
             ]
-        ]
         );
-            'message_id' => $messageId,
-        ]);
 
         $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e($emailJob->body)), $emailLog->id);
 
@@ -132,12 +110,14 @@ class SendEmailJob implements ShouldQueue
 
         $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
         $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
+        $reputationService->record($emailJob->user_id, $smtp->id, 'sent');
     }
 
     public function failed(\Throwable $e): void
     {
-        Log::channel('security')->error('Queued email permanently failed', [
+        Log::channel('security')->error('Queued user email permanently failed', [
             'email_job_id' => $this->emailJobId,
+            'queue' => 'user_email_jobs',
             'error' => $e->getMessage(),
         ]);
 
