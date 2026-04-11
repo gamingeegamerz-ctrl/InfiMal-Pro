@@ -29,6 +29,16 @@ class SMTPAccount extends Model
         'username',
         'password',
         'from_address',
+        'yahoo_score',
+        'outlook_score',
+        'gmail_score',
+        'engagement_score',
+        'complaint_rate',
+        'bounce_rate',
+        'success_rate',
+        'last_validated_at',
+        'validation_message',
+        'validation_status',
     ];
 
     protected $hidden = ['smtp_password', 'password_encrypted'];

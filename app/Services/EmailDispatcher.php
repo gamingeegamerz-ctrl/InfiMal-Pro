@@ -17,9 +17,15 @@ class EmailDispatcher
             'subject'     => $data['subject'],
             'body'        => $data['body'],
             'status'      => 'queued',
+            'idempotency_key' => hash('sha256', implode('|', [
+                $data['campaign_id'] ?? 0,
+                strtolower((string) $data['to']),
+                sha1((string) ($data['subject'] ?? '').(string) ($data['body'] ?? '')),
+            ])),
         ]);
 
         // 2. Push to queue
-        SendEmailJob::dispatch($emailJob->id);
+        SendEmailJob::dispatch($emailJob->id)
+            ->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
     }
 }
