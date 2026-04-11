@@ -19,7 +19,7 @@ class SchedulerService
 
         $userId = (int) $jobs->first()->user_id;
         $warmup = new WarmupManager($userId);
-        $dailyLimit = min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX);
+        $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
         $todaySent = $this->todaySentCount($userId);
         $remainingToday = max(0, $dailyLimit - $todaySent);
 
@@ -34,7 +34,7 @@ class SchedulerService
             }
 
             $job->forceFill([
-                'scheduled_at' => $slot->copy(),
+                'scheduled_at' => $slot->copy()->addSeconds(random_int(5, 30)),
                 'status' => 'queued',
             ])->save();
 
@@ -52,12 +52,13 @@ class SchedulerService
         }
 
         $warmup = new WarmupManager($job->user_id);
-        $dailyLimit = min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX);
+        $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
         $todaySent = $this->todaySentCount($job->user_id);
 
         if ($todaySent >= $dailyLimit) {
             $job->forceFill([
                 'scheduled_at' => $this->nextAvailableSlot($dailyLimit),
+                'retry_at' => null,
                 'status' => 'queued',
             ])->save();
 

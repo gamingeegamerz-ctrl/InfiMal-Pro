@@ -20,6 +20,7 @@ class EmailDispatcher
 
         $smtp = SMTPAccount::ownedBy((int) $data['user_id'])
             ->where('is_active', true)
+            ->userOwned()
             ->orderByDesc('is_default')
             ->first();
 

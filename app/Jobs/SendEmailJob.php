@@ -46,11 +46,17 @@ class SendEmailJob implements ShouldQueue
 
         $smtp = SMTPAccount::ownedBy($emailJob->user_id)
             ->where('is_active', true)
+            ->userOwned()
             ->orderByDesc('is_default')
             ->first();
 
         if (! $smtp) {
             $emailJob->update(['status' => 'failed', 'error_message' => 'Active SMTP not configured']);
+            return;
+        }
+
+        if ((bool) ($smtp->is_admin_pool ?? false)) {
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Admin SMTP is isolated from user jobs.']);
             return;
         }
 

@@ -23,6 +23,7 @@ class SMTPAccount extends Model
         'warmup_enabled',
         'is_default',
         'is_active',
+        'is_admin_pool',
         // compatibility aliases
         'host',
         'port',
@@ -37,6 +38,7 @@ class SMTPAccount extends Model
         'is_active' => 'boolean',
         'is_default' => 'boolean',
         'warmup_enabled' => 'boolean',
+        'is_admin_pool' => 'boolean',
         'daily_limit' => 'integer',
         'per_minute_limit' => 'integer',
         'smtp_port' => 'integer',
@@ -123,5 +125,13 @@ class SMTPAccount extends Model
     public function warmupRules()
     {
         return $this->hasMany(SmtpWarmup::class, 'smtp_id');
+    }
+
+
+    public function scopeUserOwned($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('is_admin_pool')->orWhere('is_admin_pool', false);
+        });
     }
 }

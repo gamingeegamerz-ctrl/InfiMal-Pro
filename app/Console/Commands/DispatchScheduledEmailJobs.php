@@ -3,24 +3,39 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendCampaignEmailJob;
-use App\Services\SchedulerService;
+use App\Models\EmailJob;
 use Illuminate\Console\Command;
 
 class DispatchScheduledEmailJobs extends Command
 {
-    protected $signature = 'infimal:dispatch-scheduled-emails {--limit=500}';
+    protected $signature = 'infimal:dispatch-scheduled-emails {--chunk=750} {--max=5000}';
 
-    protected $description = 'Dispatch only due email jobs (scheduled_at <= now)';
+    protected $description = 'Dispatch due user email jobs in scalable chunks without cross-queue leakage';
 
-    public function handle(SchedulerService $scheduler): int
+    public function handle(): int
     {
-        $jobs = $scheduler->dueQueuedJobs((int) $this->option('limit'));
+        $chunk = max(100, (int) $this->option('chunk'));
+        $max = max($chunk, (int) $this->option('max'));
+        $dispatched = 0;
 
-        foreach ($jobs as $job) {
-            SendCampaignEmailJob::dispatch($job->id)->onQueue('emails');
-        }
+        EmailJob::query()
+            ->queued()
+            ->readyToSend()
+            ->orderBy('id')
+            ->chunkById($chunk, function ($jobs) use (&$dispatched, $max) {
+                foreach ($jobs as $job) {
+                    if ($dispatched >= $max) {
+                        return false;
+                    }
 
-        $this->info('Dispatched '.$jobs->count().' due queued jobs.');
+                    SendCampaignEmailJob::dispatch($job->id)->onQueue('emails');
+                    $dispatched++;
+                }
+
+                return true;
+            });
+
+        $this->info('Dispatched '.$dispatched.' due queued user jobs in chunks.');
 
         return self::SUCCESS;
     }

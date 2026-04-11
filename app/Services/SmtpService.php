@@ -24,6 +24,7 @@ class SmtpService
         $smtp->per_minute_limit = (int) ($data['per_minute_limit'] ?? 30);
         $smtp->warmup_enabled = (bool) ($data['warmup_enabled'] ?? true);
         $smtp->is_active = true;
+        $smtp->is_admin_pool = false;
         if (! $smtp->exists && ! SMTPAccount::where('user_id', $userId)->exists()) {
             $smtp->is_default = true;
         }

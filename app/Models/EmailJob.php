@@ -24,6 +24,7 @@ class EmailJob extends Model
         'reply_to',
         'status',
         'scheduled_at',
+        'retry_at',
         'sent_at',
         'failed_at',
         'error_message',
@@ -33,6 +34,7 @@ class EmailJob extends Model
 
     protected $casts = [
         'scheduled_at' => 'datetime',
+        'retry_at' => 'datetime',
         'sent_at' => 'datetime',
         'failed_at' => 'datetime',
         'retry_count' => 'integer',
@@ -97,6 +99,9 @@ class EmailJob extends Model
         return $query->where(function ($q) {
             $q->whereNull('scheduled_at')
                 ->orWhere('scheduled_at', '<=', now());
+        })->where(function ($q) {
+            $q->whereNull('retry_at')
+                ->orWhere('retry_at', '<=', now());
         });
     }
 

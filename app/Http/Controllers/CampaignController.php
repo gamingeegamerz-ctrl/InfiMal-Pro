@@ -187,6 +187,7 @@ class CampaignController extends Controller
 
         $smtp = SMTPAccount::ownedBy(Auth::id())
             ->where('is_active', true)
+            ->userOwned()
             ->orderByDesc('is_default')
             ->first();
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CampaignAnalytics;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AnalyticsService
@@ -24,30 +25,35 @@ class AnalyticsService
 
     public function dashboard(int $userId): array
     {
-        $campaign = CampaignAnalytics::whereHas('campaign', fn ($q) => $q->where('user_id', $userId));
-        $smtpBase = EmailLog::where('user_id', $userId);
+        return Cache::remember("analytics:dashboard:user:{$userId}", now()->addMinutes(10), function () use ($userId) {
+            $hourly = DB::table('hourly_email_analytics')->where('user_id', $userId);
+            $hasHourly = (clone $hourly)->exists();
 
-        $campaignStats = [
-            'sent' => (clone $campaign)->where('event_type', 'sent')->count(),
-            'delivered' => (clone $campaign)->where('event_type', 'delivered')->count(),
-            'bounce' => (clone $campaign)->where('event_type', 'bounced')->count(),
-            'complaint' => (clone $campaign)->whereIn('event_type', ['complaint', 'spam_complaint'])->count(),
-            'click' => (clone $campaign)->where('event_type', 'clicked')->count(),
-            'reply' => (clone $campaign)->where('event_type', 'reply')->count(),
-        ];
+            $campaign = CampaignAnalytics::whereHas('campaign', fn ($q) => $q->where('user_id', $userId));
+            $smtpBase = EmailLog::where('user_id', $userId);
 
-        $total = (clone $smtpBase)->count();
-        $successful = (clone $smtpBase)->whereIn('status', ['sent', 'delivered'])->count();
+            $campaignStats = [
+                'sent' => $hasHourly ? (int) (clone $hourly)->sum('sent') : (clone $campaign)->where('event_type', 'sent')->count(),
+                'delivered' => $hasHourly ? (int) (clone $hourly)->sum('delivered') : (clone $campaign)->where('event_type', 'delivered')->count(),
+                'bounce' => $hasHourly ? (int) (clone $hourly)->sum('bounced') : (clone $campaign)->where('event_type', 'bounced')->count(),
+                'complaint' => $hasHourly ? (int) (clone $hourly)->sum('complaints') : (clone $campaign)->whereIn('event_type', ['complaint', 'spam_complaint'])->count(),
+                'click' => $hasHourly ? (int) (clone $hourly)->sum('clicked') : (clone $campaign)->where('event_type', 'clicked')->count(),
+                'reply' => $hasHourly ? (int) (clone $hourly)->sum('replied') : (clone $campaign)->where('event_type', 'reply')->count(),
+            ];
 
-        return [
-            'campaign_stats' => $campaignStats,
-            'smtp_stats' => [
-                'reputation_score' => round((float) SMTPAccount::ownedBy($userId)->avg('reputation_score'), 2),
-                'success_rate' => $total > 0 ? round(($successful / $total) * 100, 2) : 0.0,
-                'provider_performance' => $this->providerPerformance($userId),
-            ],
-            'engagement_score' => $this->engagementScoreByCampaign($userId),
-        ];
+            $total = (clone $smtpBase)->count();
+            $successful = (clone $smtpBase)->whereIn('status', ['sent', 'delivered'])->count();
+
+            return [
+                'campaign_stats' => $campaignStats,
+                'smtp_stats' => [
+                    'reputation_score' => round((float) SMTPAccount::ownedBy($userId)->userOwned()->avg('reputation_score'), 2),
+                    'success_rate' => $total > 0 ? round(($successful / $total) * 100, 2) : 0.0,
+                    'provider_performance' => $this->providerPerformance($userId),
+                ],
+                'engagement_score' => $this->engagementScoreByCampaign($userId),
+            ];
+        });
     }
 
     public function adminPerUserStats()
@@ -61,7 +67,7 @@ class AnalyticsService
             ->groupBy('users.id', 'users.name', 'users.email')
             ->get()
             ->map(function ($row) {
-                $row->smtp_count = SMTPAccount::where('user_id', $row->user_id)->count();
+                $row->smtp_count = SMTPAccount::where('user_id', $row->user_id)->userOwned()->count();
                 return $row;
             });
     }

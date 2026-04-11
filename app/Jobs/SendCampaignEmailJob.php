@@ -45,11 +45,17 @@ class SendCampaignEmailJob implements ShouldQueue
 
         $smtp = SMTPAccount::ownedBy($emailJob->user_id)
             ->where('is_active', true)
+            ->userOwned()
             ->orderByDesc('is_default')
             ->first();
 
         if (! $smtp) {
             $emailJob->update(['status' => 'failed', 'error_message' => 'No active SMTP configured']);
+            return;
+        }
+
+        if ((bool) ($smtp->is_admin_pool ?? false)) {
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Admin SMTP is isolated from user jobs.']);
             return;
         }
 
@@ -62,7 +68,7 @@ class SendCampaignEmailJob implements ShouldQueue
         if (! $quotaCheck['allowed']) {
             $emailJob->update([
                 'status' => 'queued',
-                'scheduled_at' => now()->addSeconds(max(60, (int) $quotaCheck['delay'])),
+                'retry_at' => now()->addSeconds(max(60, (int) $quotaCheck['delay'])),
             ]);
             $this->release($quotaCheck['delay']);
             return;
@@ -117,11 +123,13 @@ class SendCampaignEmailJob implements ShouldQueue
                 'status' => $status,
                 'failed_at' => now(),
                 'error_message' => substr($e->getMessage(), 0, 1000),
+                'retry_at' => $status === 'queued' ? now()->addSeconds(60) : null,
             ]);
 
             $log->update([
                 'status' => $status === 'bounced' ? 'bounced' : 'failed',
                 'error_message' => substr($e->getMessage(), 0, 1000),
+                'retry_at' => $status === 'queued' ? now()->addSeconds(60) : null,
             ]);
 
             if ($emailJob->retry_count < $this->tries) {
