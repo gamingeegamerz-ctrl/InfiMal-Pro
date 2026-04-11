@@ -26,6 +26,7 @@ class SchedulerService
         $intervalSeconds = $this->paceIntervalSeconds($dailyLimit);
         $slot = now();
         $scheduledToday = 0;
+        $maxDelayHours = (int) config('infimal.scheduler.max_delay_hours', 24);
 
         foreach ($jobs as $job) {
             if ($scheduledToday >= $remainingToday) {
@@ -33,8 +34,15 @@ class SchedulerService
                 $scheduledToday = 0;
             }
 
+            if ($slot->diffInHours(now()) > $maxDelayHours) {
+                $intervalSeconds = max(5, (int) floor($intervalSeconds / 2));
+            }
+
             $job->forceFill([
+                'priority' => $this->resolvePriority($job),
                 'scheduled_at' => $slot->copy()->addSeconds(random_int(5, 30)),
+                'retry_at' => null,
+                'expires_at' => now()->addHours($maxDelayHours),
                 'status' => 'queued',
             ])->save();
 
@@ -47,6 +55,16 @@ class SchedulerService
 
     public function enforceBeforeSend(EmailJob $job, SMTPAccount $smtp): bool
     {
+        if ($job->expires_at && $job->expires_at->isPast()) {
+            $job->forceFill([
+                'status' => 'failed',
+                'error_message' => 'Email job expired before send.',
+                'failed_at' => now(),
+            ])->save();
+
+            return false;
+        }
+
         if ($job->scheduled_at && $job->scheduled_at->isFuture()) {
             return false;
         }
@@ -73,9 +91,19 @@ class SchedulerService
         return EmailJob::query()
             ->queued()
             ->readyToSend()
+            ->orderByDesc('priority')
             ->orderBy('scheduled_at')
             ->limit($limit)
             ->get();
+    }
+
+    private function resolvePriority(EmailJob $job): int
+    {
+        if (empty($job->campaign_id)) {
+            return 3; // transactional
+        }
+
+        return $job->created_at && $job->created_at->gt(now()->subHours(6)) ? 2 : 1;
     }
 
     private function todaySentCount(int $userId): int

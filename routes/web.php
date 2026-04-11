@@ -47,6 +47,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 Route::get('/track/open/{id}.png', [TrackingController::class, 'openById'])->name('track.open.id');
 Route::get('/track/click/{id}', [TrackingController::class, 'clickById'])->name('track.click.id');
 Route::post('/track/bounce', [TrackingController::class, 'trackBounce'])->name('track.bounce');
+Route::post('/track/complaint', [TrackingController::class, 'trackComplaint'])->name('track.complaint');
 Route::get('/track/unsubscribe', [TrackingController::class, 'unsubscribe'])->name('track.unsubscribe');
 
 Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])->middleware('throttle:webhook')

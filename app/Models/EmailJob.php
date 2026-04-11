@@ -23,8 +23,10 @@ class EmailJob extends Model
         'from_name',
         'reply_to',
         'status',
+        'priority',
         'scheduled_at',
         'retry_at',
+        'expires_at',
         'sent_at',
         'failed_at',
         'error_message',
@@ -33,8 +35,10 @@ class EmailJob extends Model
     ];
 
     protected $casts = [
+        'priority' => 'integer',
         'scheduled_at' => 'datetime',
         'retry_at' => 'datetime',
+        'expires_at' => 'datetime',
         'sent_at' => 'datetime',
         'failed_at' => 'datetime',
         'retry_count' => 'integer',
@@ -102,6 +106,9 @@ class EmailJob extends Model
         })->where(function ($q) {
             $q->whereNull('retry_at')
                 ->orWhere('retry_at', '<=', now());
+        })->where(function ($q) {
+            $q->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
         });
     }
 

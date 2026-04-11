@@ -24,3 +24,7 @@ Schedule::command('infimal:aggregate-email-analytics')
 Schedule::command('infimal:enforce-admin-smtp-protection')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+Schedule::command('infimal:auto-scale-workers')
+    ->everyMinute()
+    ->withoutOverlapping();
