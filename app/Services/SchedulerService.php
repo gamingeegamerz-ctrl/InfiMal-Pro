@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\ProductionSafetyService;
 use App\Models\EmailJob;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
@@ -11,19 +12,26 @@ use Illuminate\Support\Facades\Cache;
 
 class SchedulerService
 {
+    public function __construct(private readonly ProductionSafetyService $safety)
+    {
+    }
     private int $maxJobsPerRun = 5000;
     private int $windowMinutes = 10;
     private int $maxDelayHours = 24;
 
     public function scheduleCampaignJobs(Collection $jobs, SMTPAccount $smtp): void
     {
-        if ($jobs->isEmpty()) {
+        if ($jobs->isEmpty() || $this->safety->isGlobalPause()) {
             return;
         }
 
         $userId = (int) $jobs->first()->user_id;
         $warmup = new WarmupManager($userId);
         $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
+        $dailyLimit = (int) floor($dailyLimit * $this->safety->safeModeRateFactor());
+        if ($this->safety->isSafeMode()) {
+            $dailyLimit = (int) floor($dailyLimit * 0.8);
+        }
         $todaySent = $this->todaySentCount($userId);
         $remainingToday = max(0, $dailyLimit - $todaySent);
 
@@ -66,6 +74,10 @@ class SchedulerService
 
     public function enforceBeforeSend(EmailJob $job, SMTPAccount $smtp): bool
     {
+        if ($this->safety->isGlobalPause()) {
+            return false;
+        }
+
         if ($job->scheduled_at && $job->scheduled_at->isFuture()) {
             return false;
         }
@@ -82,6 +94,7 @@ class SchedulerService
 
         $warmup = new WarmupManager($job->user_id);
         $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
+        $dailyLimit = (int) floor($dailyLimit * $this->safety->safeModeRateFactor());
 
         if ($job->scheduled_at && $job->scheduled_at->lt(now()->subHours($this->maxDelayHours))) {
             $dailyLimit = (int) ceil($dailyLimit * 1.2);

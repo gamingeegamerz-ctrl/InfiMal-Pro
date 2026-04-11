@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ProductionSafetyService;
 use App\Jobs\SendCampaignEmailJob;
 use App\Models\EmailJob;
 use Illuminate\Console\Command;
@@ -12,10 +13,19 @@ class DispatchScheduledEmailJobs extends Command
 
     protected $description = 'Dispatch due user email jobs in scalable chunks without cross-queue leakage';
 
-    public function handle(): int
+    public function handle(ProductionSafetyService $safety): int
     {
         $chunk = max(100, (int) $this->option('chunk'));
         $max = max($chunk, (int) $this->option('max'));
+
+        if ($safety->isGlobalPause()) {
+            $this->warn('Global pause enabled; dispatch skipped.');
+            return self::SUCCESS;
+        }
+
+        if ($safety->isSafeMode()) {
+            $max = (int) floor($max * 0.6);
+        }
 
         EmailJob::query()
             ->where('status', 'queued')

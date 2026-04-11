@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ProductionSafetyService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +13,7 @@ class AutoScaleEmailWorkers extends Command
 
     protected $description = 'Compute dynamic worker target based on queue pressure';
 
-    public function handle(): int
+    public function handle(ProductionSafetyService $safety): int
     {
         $pendingJobs = DB::table('email_jobs')->where('status', 'queued')->count();
         $queueBacklog = DB::table('jobs')->where('queue', 'emails')->count();
@@ -23,6 +24,12 @@ class AutoScaleEmailWorkers extends Command
         $step = max(1, (int) $this->option('scale-step'));
 
         $current = (int) Cache::get('workers:emails:target', $minWorkers);
+
+        if ($safety->isGlobalPause()) {
+            Cache::put('workers:emails:target', $minWorkers, now()->addMinutes(10));
+            $this->info('Global pause active; forcing min workers.');
+            return self::SUCCESS;
+        }
         $lastAdjustAt = Cache::get('workers:emails:last_adjust_at');
 
         $trend = Cache::get('workers:emails:trend', []);
@@ -40,7 +47,8 @@ class AutoScaleEmailWorkers extends Command
 
         $target = $current;
         if ($highConsistent) {
-            $target = min($maxWorkers, $current + $step);
+            $effectiveStep = $safety->isSafeMode() ? 1 : $step;
+            $target = min($maxWorkers, $current + $effectiveStep);
         } elseif ($lowConsistent) {
             $target = max($minWorkers, $current - 1);
         }
