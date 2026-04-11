@@ -7,9 +7,13 @@ use App\Models\EmailLog;
 use App\Models\Subscriber;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use App\Services\AnalyticsService;
 
 class AnalyticsController extends Controller
 {
+    public function __construct(private readonly AnalyticsService $analyticsService)
+    {
+    }
     public function index(): View
     {
         return view('analytics.index', $this->buildPayload());
@@ -75,6 +79,7 @@ class AnalyticsController extends Controller
         })->values();
 
         return [
+            'dashboard' => $this->analyticsService->dashboard($userId),
             'overview' => [
                 'total_campaigns' => Campaign::where('user_id', $userId)->count(),
                 'total_subscribers' => Subscriber::where('user_id', $userId)->count(),

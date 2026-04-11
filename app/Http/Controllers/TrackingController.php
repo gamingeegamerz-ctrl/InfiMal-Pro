@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EmailLog;
 use App\Models\Subscriber;
+use App\Services\ReputationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\DB;
 
 class TrackingController extends Controller
 {
+    public function __construct(private readonly ReputationService $reputationService)
+    {
+    }
+
     public function openById(int $id): Response
     {
         $firstOpen = EmailLog::whereKey($id)
@@ -124,6 +129,9 @@ class TrackingController extends Controller
             DB::table('campaigns')
                 ->where('id', $log->campaign_id)
                 ->increment('total_bounced');
+
+            $this->reputationService->applyBouncePenalty($log->smtp_id);
+            $this->reputationService->triggerFailsafeIfSpike($log->user_id, $log->campaign_id, $log->smtp_id);
         }
 
         if ($log->recipient_email) {

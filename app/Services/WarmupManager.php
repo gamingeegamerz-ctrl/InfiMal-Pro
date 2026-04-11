@@ -61,7 +61,7 @@ class WarmupManager
     /**
      * Get how many emails user sent today
      */
-    protected function getTodayUsage(): int
+    public function getTodayUsage(): int
     {
         $today = Carbon::today()->toDateString();
 

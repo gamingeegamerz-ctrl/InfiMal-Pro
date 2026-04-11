@@ -2,24 +2,32 @@
 
 namespace App\Services;
 
-use App\Jobs\SendEmailJob;
 use App\Models\EmailJob;
+use App\Models\SMTPAccount;
 
 class EmailDispatcher
 {
     public static function dispatch(array $data): void
     {
-        // 1. Save email to database
         $emailJob = EmailJob::create([
-            'user_id'     => $data['user_id'],
+            'user_id' => $data['user_id'],
             'campaign_id' => $data['campaign_id'] ?? null,
-            'to_email'    => $data['to'],
-            'subject'     => $data['subject'],
-            'body'        => $data['body'],
-            'status'      => 'queued',
+            'to_email' => $data['to'],
+            'subject' => $data['subject'],
+            'body' => $data['body'],
+            'status' => 'queued',
         ]);
 
-        // 2. Push to queue
-        SendEmailJob::dispatch($emailJob->id);
+        $smtp = SMTPAccount::ownedBy((int) $data['user_id'])
+            ->where('is_active', true)
+            ->userOwned()
+            ->orderByDesc('is_default')
+            ->first();
+
+        if (! $smtp) {
+            return;
+        }
+
+        app(SchedulerService::class)->scheduleCampaignJobs(collect([$emailJob]), $smtp);
     }
 }

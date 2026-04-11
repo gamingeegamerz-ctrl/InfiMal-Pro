@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsurePaidAccess;
 use App\Http\Middleware\EnforceOnboardingState;
 use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\EnforceUsageLimits;
+use App\Http\Middleware\IsAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'flow.state' => EnforceOnboardingState::class,
             'subscription.active' => EnsureActiveSubscription::class,
             'usage.limits' => EnforceUsageLimits::class,
+            'admin' => IsAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

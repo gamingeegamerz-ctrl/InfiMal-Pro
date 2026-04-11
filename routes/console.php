@@ -12,3 +12,19 @@ Schedule::command('infimal:backup-db')
     ->dailyAt('02:15')
     ->withoutOverlapping()
     ->onOneServer();
+
+Schedule::command('infimal:dispatch-scheduled-emails --chunk=750 --max=5000')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('infimal:aggregate-email-analytics')
+    ->hourly()
+    ->withoutOverlapping();
+
+Schedule::command('infimal:enforce-admin-smtp-protection --global-max=200000 --campaign-max=50000')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('infimal:auto-scale-workers --max-workers=20')
+    ->everyMinute()
+    ->withoutOverlapping();
