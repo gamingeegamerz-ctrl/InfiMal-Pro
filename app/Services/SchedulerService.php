@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Services\ProductionSafetyService;
+use App\Services\ConfigGuardService;
 use App\Models\EmailJob;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 
 class SchedulerService
 {
-    public function __construct(private readonly ProductionSafetyService $safety)
+    public function __construct(private readonly ProductionSafetyService $safety, private readonly ConfigGuardService $configGuard)
     {
     }
     private int $maxJobsPerRun = 5000;
@@ -28,6 +29,8 @@ class SchedulerService
         $userId = (int) $jobs->first()->user_id;
         $warmup = new WarmupManager($userId);
         $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
+        $maxSendRate = (int) $this->configGuard->get('throttle.max_send_rate', 1000);
+        $dailyLimit = min($dailyLimit, $maxSendRate);
         $dailyLimit = (int) floor($dailyLimit * $this->safety->safeModeRateFactor());
         if ($this->safety->isSafeMode()) {
             $dailyLimit = (int) floor($dailyLimit * 0.8);

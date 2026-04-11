@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\ConfigGuardService;
+use App\Services\ProductionSafetyService;
 use App\Models\CampaignAnalytics;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
@@ -10,6 +12,9 @@ use Illuminate\Support\Facades\DB;
 
 class AnalyticsService
 {
+    public function __construct(private readonly ProductionSafetyService $safety, private readonly ConfigGuardService $configGuard)
+    {
+    }
     public function userStats(int $userId): array
     {
         $base = EmailLog::where('user_id', $userId);
@@ -59,6 +64,15 @@ class AnalyticsService
                 ],
                 'engagement_score' => $this->engagementScoreByCampaign($userId),
 
+
+                'system_state' => [
+                    'mode' => $this->safety->isGlobalPause() ? 'paused' : ($this->safety->isSafeMode() ? 'safe_mode' : 'normal'),
+                    'limits' => $this->configGuard->systemLimits(),
+                    'active_protections' => [
+                        'throttling' => $this->safety->isSafeMode(),
+                        'global_pause' => $this->safety->isGlobalPause(),
+                    ],
+                ],
                 'expiry_metrics' => [
                     'expired_count' => (clone $expiredBase)->count(),
                     'reasons' => (clone $expiredBase)

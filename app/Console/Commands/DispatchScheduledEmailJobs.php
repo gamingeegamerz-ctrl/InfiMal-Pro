@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\ProductionSafetyService;
 use App\Jobs\SendCampaignEmailJob;
 use App\Models\EmailJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Console\Command;
 
 class DispatchScheduledEmailJobs extends Command
@@ -26,6 +27,14 @@ class DispatchScheduledEmailJobs extends Command
         if ($safety->isSafeMode()) {
             $max = (int) floor($max * 0.6);
         }
+
+
+        if (Cache::get('manual_override_force_send', false)) {
+            $safety->alert('Manual override attempt blocked', ['action' => 'force_send_dispatch'], 'high');
+            $this->warn('Manual force-send override is blocked by guardrail.');
+            return self::SUCCESS;
+        }
+
 
         EmailJob::query()
             ->where('status', 'queued')

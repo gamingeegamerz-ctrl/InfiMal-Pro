@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\ProductionSafetyService;
+use App\Services\ConfigGuardService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ class MonitorSystemHealth extends Command
 
     protected $description = 'Monitor global delivery health and auto-toggle safety controls';
 
-    public function handle(ProductionSafetyService $safety): int
+    public function handle(ProductionSafetyService $safety, ConfigGuardService $guard): int
     {
         $m = $safety->collectGlobalMetrics();
 
@@ -34,6 +35,15 @@ class MonitorSystemHealth extends Command
         if ($m['bounce_rate'] > 12.0 || $m['complaint_rate'] > 3.0) {
             $safety->activateGlobalPause('critical reputation event');
         }
+
+
+        if ($m['bounce_rate'] > 8.0 || $m['complaint_rate'] > 2.0) {
+            foreach (['warmup.daily_growth_percent', 'throttle.max_send_rate', 'scaling.max_workers'] as $key) {
+                $guard->rollback($key, 'Auto rollback due to post-change risk spike');
+            }
+            $safety->alert('Auto rollback executed after risk spike', $m, 'critical');
+        }
+
 
         if ($m['success_rate'] < 80.0) {
             $safety->alert('Send success rate degraded', $m);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\AuditLogService;
 use App\Jobs\SendOpsAlertJob;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -9,6 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class ProductionSafetyService
 {
+    public function __construct(private readonly AuditLogService $audit)
+    {
+    }
     private const SAFE_MODE_KEY = 'system_safe_mode';
     private const GLOBAL_PAUSE_KEY = 'system_global_pause';
 
@@ -20,7 +24,7 @@ class ProductionSafetyService
     public function enableSafeMode(string $reason): void
     {
         Cache::put(self::SAFE_MODE_KEY, true, now()->addDay());
-        $this->alert('Safe mode enabled', ['reason' => $reason]);
+        $this->alert('Safe mode enabled', ['reason' => $reason], 'high');
     }
 
     public function disableSafeMode(): void
@@ -36,7 +40,7 @@ class ProductionSafetyService
     public function activateGlobalPause(string $reason): void
     {
         Cache::put(self::GLOBAL_PAUSE_KEY, true, now()->addHours(6));
-        $this->alert('Global kill switch activated', ['reason' => $reason]);
+        $this->alert('Global kill switch activated', ['reason' => $reason], 'critical');
     }
 
     public function collectGlobalMetrics(): array
@@ -56,10 +60,24 @@ class ProductionSafetyService
         ];
     }
 
-    public function alert(string $title, array $context): void
+    public function alert(string $title, array $context, string $severity = "medium"): void
     {
-        Log::channel('alerts')->warning($title, $this->sanitize($context));
-        SendOpsAlertJob::dispatch('[InfiMal Alert] '.$title, json_encode($this->sanitize($context)))->onQueue('alerts');
+        $safe = $this->sanitize($context);
+
+        if ($severity === 'low') {
+            Log::channel('alerts')->info($title, $safe);
+        } elseif ($severity === 'medium') {
+            Log::channel('alerts')->warning($title, $safe);
+            SendOpsAlertJob::dispatch('[InfiMal Alert] '.$title, json_encode($safe))->onQueue('alerts');
+        } elseif ($severity === 'high') {
+            Log::channel('alerts')->error($title, $safe);
+            SendOpsAlertJob::dispatch('[InfiMal High] '.$title, json_encode($safe))->onQueue('alerts');
+        } else {
+            Log::channel('alerts')->critical($title, $safe);
+            SendOpsAlertJob::dispatch('[InfiMal Critical] '.$title, json_encode($safe))->onQueue('alerts');
+        }
+
+        $this->audit->record('alert', $title, $safe, $severity);
     }
 
     public function safeModeRateFactor(): float
