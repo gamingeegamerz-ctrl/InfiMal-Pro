@@ -8,8 +8,11 @@ return [
     ],
     'queue' => [
         'connection' => env('QUEUE_CONNECTION', 'database'),
-        'email_queue' => env('INFIMAL_EMAIL_QUEUE', 'emails'),
+        'user_email_queue' => env('INFIMAL_USER_EMAIL_QUEUE', 'user_email_jobs'),
+        'admin_email_queue' => env('INFIMAL_ADMIN_EMAIL_QUEUE', 'admin_email_jobs'),
     ],
+    'smtp_validation_probe_to' => env('INFIMAL_SMTP_PROBE_TO'),
+
     'deliverability' => [
         'spf' => env('MAIL_SPF_RECORD', ''),
         'dkim_selector' => env('MAIL_DKIM_SELECTOR', ''),
@@ -38,6 +41,15 @@ return [
     'admin_smtp' => [
         'global_max_emails_per_day' => (int) env('INFIMAL_ADMIN_SMTP_GLOBAL_MAX_PER_DAY', 100000),
         'max_per_campaign' => (int) env('INFIMAL_ADMIN_SMTP_MAX_PER_CAMPAIGN', 10000),
+    'workers' => [
+        'user_email_jobs' => [
+            'max_processes' => (int) env('INFIMAL_USER_WORKERS', 8),
+            'balance' => 'auto',
+        ],
+        'admin_email_jobs' => [
+            'max_processes' => (int) env('INFIMAL_ADMIN_WORKERS', 20),
+            'balance' => 'auto',
+        ],
     ],
 ];
 

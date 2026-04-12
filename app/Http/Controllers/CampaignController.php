@@ -216,6 +216,14 @@ class CampaignController extends Controller
                 'reply_to' => $campaign->reply_to,
                 'status' => 'queued',
             ]));
+                'idempotency_key' => hash('sha256', implode('|', [
+                    $campaign->id,
+                    strtolower((string) $subscriber->email),
+                    sha1((string) $campaign->subject.(string) $campaign->content),
+                ])),
+            ]);
+
+            SendCampaignEmailJob::dispatch($job->id)->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
         }
 
         $scheduler->scheduleCampaignJobs($jobs, $smtp);

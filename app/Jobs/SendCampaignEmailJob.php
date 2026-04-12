@@ -27,6 +27,8 @@ class SendCampaignEmailJob implements ShouldQueue
     public function __construct(int $emailJobId)
     {
         $this->emailJobId = $emailJobId;
+        $this->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
+        $this->onQueue('user_email_jobs');
     }
 
     public function handle(SendEngineService $engine, SchedulerService $scheduler): void

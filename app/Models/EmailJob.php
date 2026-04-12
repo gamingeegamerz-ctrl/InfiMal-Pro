@@ -31,7 +31,8 @@ class EmailJob extends Model
         'failed_at',
         'error_message',
         'retry_count',
-        'smtp_id'
+        'smtp_id',
+        'idempotency_key'
     ];
 
     protected $casts = [
