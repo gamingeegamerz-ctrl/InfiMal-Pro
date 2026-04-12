@@ -18,6 +18,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Services\UserReputationService;
 
 class SendEmailJob implements ShouldQueue
 {
@@ -36,6 +37,10 @@ class SendEmailJob implements ShouldQueue
     }
 
     public function handle(AdaptiveThrottleService $throttle, EmailReputationService $reputation): void
+        $this->onQueue('user_email_jobs');
+    }
+
+    public function handle(UserReputationService $reputationService): void
     {
         $emailJob = EmailJob::find($this->emailJobId);
         if (! $emailJob || in_array($emailJob->status, ['sent', 'bounced'], true)) {
@@ -50,6 +55,8 @@ class SendEmailJob implements ShouldQueue
 
         if (! $smtp) {
             $emailJob->update(['status' => 'failed', 'error_message' => 'Active validated user SMTP not configured']);
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Active USER SMTP not configured']);
+
             return;
         }
 
@@ -62,6 +69,7 @@ class SendEmailJob implements ShouldQueue
 
             if (! $domainVerified) {
                 $emailJob->update(['status' => 'failed', 'error_message' => 'Sender domain is not verified.']);
+
                 return;
             }
         }
@@ -80,10 +88,13 @@ class SendEmailJob implements ShouldQueue
             ->whereIn('status', ['sent', 'delivered'])
             ->exists();
 
+        $messageId = 'user-job-'.$emailJob->id;
+        $existingDelivered = EmailLog::where('message_id', $messageId)
+            ->whereIn('status', ['sent', 'delivered'])
+            ->exists();
+
         if ($existingDelivered) {
             $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
-            return;
-        }
 
         $messageId = 'user-'.$emailJob->id.'-'.Str::uuid();
 
@@ -101,6 +112,21 @@ class SendEmailJob implements ShouldQueue
             'message_id' => $messageId,
             'idempotency_key' => $idempotencyKey,
         ]);
+            return;
+        }
+
+        $emailLog = EmailLog::updateOrCreate(
+            ['message_id' => $messageId],
+            [
+                'user_id' => $emailJob->user_id,
+                'campaign_id' => $emailJob->campaign_id,
+                'smtp_id' => $smtp->id,
+                'to_email' => $emailJob->to_email,
+                'recipient_email' => $emailJob->to_email,
+                'subject' => $emailJob->subject,
+                'status' => 'pending',
+            ]
+        );
 
         $delayMs = $throttle->recommendedDelayMs((float) $smtp->bounce_rate, (float) $smtp->complaint_rate, 0);
         usleep($delayMs * 1000);
@@ -155,12 +181,16 @@ class SendEmailJob implements ShouldQueue
 
             throw $e;
         }
+        $emailJob->update(['status' => 'sent', 'sent_at' => now(), 'smtp_id' => $smtp->id]);
+        $emailLog->update(['status' => 'sent', 'sent_at' => now()]);
+        $reputationService->record($emailJob->user_id, $smtp->id, 'sent');
     }
 
     public function failed(\Throwable $e): void
     {
-        Log::channel('security')->error('Queued email permanently failed', [
+        Log::channel('security')->error('Queued user email permanently failed', [
             'email_job_id' => $this->emailJobId,
+            'queue' => 'user_email_jobs',
             'error' => $e->getMessage(),
         ]);
 

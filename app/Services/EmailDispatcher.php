@@ -27,5 +27,6 @@ class EmailDispatcher
         // 2. Push to queue
         SendEmailJob::dispatch($emailJob->id)
             ->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
+        SendEmailJob::dispatch($emailJob->id)->onQueue('user_email_jobs');
     }
 }

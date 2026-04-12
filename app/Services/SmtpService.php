@@ -58,6 +58,16 @@ class SmtpService
             $smtp->password = $data['password'];
         }
 
+        $validation = $this->validateSmtpConnection(
+            host: $smtp->host,
+            port: (int) $smtp->port,
+            timeoutSeconds: 5,
+        );
+
+        if (! $validation['success']) {
+            throw new \RuntimeException('SMTP validation failed: '.$validation['message']);
+        }
+
         $smtp->save();
 
         return $smtp;
@@ -98,5 +108,21 @@ class SmtpService
         });
 
         return ['success' => true, 'message' => 'SMTP validated and test email sent.', 'status' => $result['status']];
+    }
+
+    public function validateSmtpConnection(string $host, int $port, int $timeoutSeconds = 5): array
+    {
+        $connection = @fsockopen($host, $port, $errno, $errstr, $timeoutSeconds);
+
+        if (! $connection) {
+            return [
+                'success' => false,
+                'message' => "Could not connect to {$host}:{$port} ({$errno}: {$errstr})",
+            ];
+        }
+
+        fclose($connection);
+
+        return ['success' => true, 'message' => 'SMTP endpoint reachable'];
     }
 }
