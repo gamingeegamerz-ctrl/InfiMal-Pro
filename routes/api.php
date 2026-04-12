@@ -166,3 +166,6 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])
     ->group(function () {
         Route::post('/emails/send', [EmailSendController::class, 'send']);
     });
+
+Route::post('/track/complaint', [\App\Http\Controllers\TrackingController::class, 'trackComplaint']);
+Route::post('/track/reply', [\App\Http\Controllers\TrackingController::class, 'trackReply']);

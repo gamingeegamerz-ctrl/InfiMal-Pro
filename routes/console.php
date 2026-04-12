@@ -36,3 +36,10 @@ Schedule::command('infimal:monitor-system-health')
 Schedule::command('infimal:daily-health-report')
     ->dailyAt('00:15')
     ->withoutOverlapping();
+Schedule::command('infimal:enforce-admin-smtp-protection')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('infimal:auto-scale-workers')
+    ->everyMinute()
+    ->withoutOverlapping();

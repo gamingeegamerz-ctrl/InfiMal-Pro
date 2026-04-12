@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Services\ProductionSafetyService;
 use App\Services\ConfigGuardService;
+use App\Jobs\SendCampaignEmailJob;
 use App\Models\EmailJob;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
@@ -23,6 +24,12 @@ class SchedulerService
     public function scheduleCampaignJobs(Collection $jobs, SMTPAccount $smtp): void
     {
         if ($jobs->isEmpty() || $this->safety->isGlobalPause()) {
+
+class SchedulerService
+{
+    public function scheduleCampaignJobs(Collection $jobs, SMTPAccount $smtp): void
+    {
+        if ($jobs->isEmpty()) {
             return;
         }
 
@@ -53,6 +60,15 @@ class SchedulerService
             $job->priority = $this->resolvePriority($job);
             $job->expires_at = now()->addHours($this->maxDelayHours);
 
+        $todaySent = $this->todaySentCount($userId);
+        $remainingToday = max(0, $dailyLimit - $todaySent);
+
+        $intervalSeconds = $this->paceIntervalSeconds($dailyLimit);
+        $slot = now();
+        $scheduledToday = 0;
+        $maxDelayHours = (int) config('infimal.scheduler.max_delay_hours', 24);
+
+        foreach ($jobs as $job) {
             if ($scheduledToday >= $remainingToday) {
                 $slot = $this->nextDayStartSlot($slot);
                 $scheduledToday = 0;
@@ -71,6 +87,21 @@ class SchedulerService
 
             $scheduledToday++;
             $scheduledThisRun++;
+            if ($slot->diffInHours(now()) > $maxDelayHours) {
+                $intervalSeconds = max(5, (int) floor($intervalSeconds / 2));
+            }
+
+            $job->forceFill([
+                'priority' => $this->resolvePriority($job),
+                'scheduled_at' => $slot->copy()->addSeconds(random_int(5, 30)),
+                'retry_at' => null,
+                'expires_at' => now()->addHours($maxDelayHours),
+                'status' => 'queued',
+            ])->save();
+
+            SendCampaignEmailJob::dispatch($job->id)->onQueue('emails');
+
+            $scheduledToday++;
             $slot->addSeconds($intervalSeconds);
         }
     }
@@ -91,6 +122,12 @@ class SchedulerService
                 'error_message' => 'Job expired before delivery window',
                 'failed_at' => now(),
             ]);
+        if ($job->expires_at && $job->expires_at->isPast()) {
+            $job->forceFill([
+                'status' => 'failed',
+                'error_message' => 'Email job expired before send.',
+                'failed_at' => now(),
+            ])->save();
 
             return false;
         }
@@ -113,6 +150,18 @@ class SchedulerService
 
             $job->forceFill([
                 'retry_at' => $this->nextAvailableSlot($dailyLimit),
+        if ($job->scheduled_at && $job->scheduled_at->isFuture()) {
+            return false;
+        }
+
+        $warmup = new WarmupManager($job->user_id);
+        $dailyLimit = max(20, min($warmup->getTodayWarmupLimit(), $smtp->daily_limit ?: PHP_INT_MAX));
+        $todaySent = $this->todaySentCount($job->user_id);
+
+        if ($todaySent >= $dailyLimit) {
+            $job->forceFill([
+                'scheduled_at' => $this->nextAvailableSlot($dailyLimit),
+                'retry_at' => null,
                 'status' => 'queued',
             ])->save();
 
@@ -133,6 +182,7 @@ class SchedulerService
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
             ->orderBy('priority')
+            ->orderByDesc('priority')
             ->orderBy('scheduled_at')
             ->limit($limit)
             ->get();
@@ -149,6 +199,11 @@ class SchedulerService
         }
 
         return 3;
+        if (empty($job->campaign_id)) {
+            return 3; // transactional
+        }
+
+        return $job->created_at && $job->created_at->gt(now()->subHours(6)) ? 2 : 1;
     }
 
     private function todaySentCount(int $userId): int

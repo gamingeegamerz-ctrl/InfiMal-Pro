@@ -206,8 +206,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user has full paid access (Admin always returns true)
+     * Send the password reset notification using branded SaaS email content.
      */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
+
     public function hasPaidAccess(): bool
     {
         // Admin always has full access

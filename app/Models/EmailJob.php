@@ -31,12 +31,15 @@ class EmailJob extends Model
         'failed_at',
         'error_message',
         'retry_count',
-        'smtp_id'
+        'smtp_id',
+        'idempotency_key'
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
         'priority' => 'integer',
+        'priority' => 'integer',
+        'scheduled_at' => 'datetime',
         'retry_at' => 'datetime',
         'expires_at' => 'datetime',
         'sent_at' => 'datetime',
@@ -106,6 +109,9 @@ class EmailJob extends Model
         })->where(function ($q) {
             $q->whereNull('retry_at')
                 ->orWhere('retry_at', '<=', now());
+        })->where(function ($q) {
+            $q->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
         });
     }
 

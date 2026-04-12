@@ -22,6 +22,10 @@ class EmailLog extends Model
         'opened_at',
         'clicked_at',
         'bounced_at',
+        'idempotency_key',
+        'provider',
+        'replied_at',
+        'complained_at',
         'message_id',
         'error_message',
         'sent_at',
@@ -33,6 +37,8 @@ class EmailLog extends Model
         'opened_at' => 'datetime',
         'clicked_at' => 'datetime',
         'bounced_at' => 'datetime',
+        'complained_at' => 'datetime',
+        'replied_at' => 'datetime',
         'sent_at' => 'datetime',
     ];
 }

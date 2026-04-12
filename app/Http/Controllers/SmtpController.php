@@ -58,14 +58,11 @@ class SmtpController extends Controller
             return 'Failed';
         }
 
-        $connection = @fsockopen($smtp->host, (int) $smtp->port, $errno, $errstr, 3);
-        if (!$connection) {
+        if (($smtp->validation_status ?? 'invalid') === 'invalid') {
             return 'Failed';
         }
 
-        fclose($connection);
-
-        return 'Active';
+        return ($smtp->validation_status ?? 'invalid') === 'risky' ? 'Risky' : 'Active';
     }
 
     public function health()
