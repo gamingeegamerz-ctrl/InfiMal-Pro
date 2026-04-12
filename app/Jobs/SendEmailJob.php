@@ -74,6 +74,17 @@ class SendEmailJob implements ShouldQueue
             return;
         }
 
+        if ((bool) ($smtp->is_admin_pool ?? false)) {
+            $emailJob->update(['status' => 'failed', 'error_message' => 'Admin SMTP is isolated from user jobs.']);
+            return;
+        }
+
+        if (! $scheduler->enforceBeforeSend($emailJob, $smtp)) {
+            $this->release(60);
+            return;
+        }
+
+        $messageId = 'job-'.$emailJob->id.'-'.now()->timestamp;
         if (! $scheduler->enforceBeforeSend($emailJob, $smtp)) {
             $this->release(60);
             return;
@@ -131,6 +142,18 @@ class SendEmailJob implements ShouldQueue
             'provider' => $provider,
             'message_id' => $messageId,
         ]);
+
+        $htmlBody = TrackingController::processEmailContent($emailJob->html ?: nl2br(e((string) $emailJob->body)), $emailLog->id);
+
+        Config::set('mail.default', 'smtp');
+        Config::set('mail.mailers.smtp.host', $smtp->host);
+        Config::set('mail.mailers.smtp.port', $smtp->port);
+        Config::set('mail.mailers.smtp.encryption', $smtp->encryption === 'none' ? null : $smtp->encryption);
+        Config::set('mail.mailers.smtp.username', $smtp->username);
+        Config::set('mail.mailers.smtp.password', $smtp->password);
+        Config::set('mail.from.address', $smtp->from_address ?: $emailJob->from_email);
+        Config::set('mail.from.name', $smtp->from_name ?: 'InfiMal');
+
             'idempotency_key' => $idempotencyKey,
         ]);
             return;

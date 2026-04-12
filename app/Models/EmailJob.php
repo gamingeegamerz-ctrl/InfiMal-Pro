@@ -36,6 +36,8 @@ class EmailJob extends Model
     ];
 
     protected $casts = [
+        'scheduled_at' => 'datetime',
+        'priority' => 'integer',
         'priority' => 'integer',
         'scheduled_at' => 'datetime',
         'retry_at' => 'datetime',

@@ -125,11 +125,13 @@ class SendCampaignEmailJob implements ShouldQueue
                 'status' => $status,
                 'failed_at' => now(),
                 'error_message' => substr($e->getMessage(), 0, 1000),
+                'retry_at' => $status === 'queued' ? now()->addSeconds(60) : null,
             ]);
 
             $log->update([
                 'status' => $status === 'bounced' ? 'bounced' : 'failed',
                 'error_message' => substr($e->getMessage(), 0, 1000),
+                'retry_at' => $status === 'queued' ? now()->addSeconds(60) : null,
             ]);
 
             if ($emailJob->retry_count < $this->tries) {

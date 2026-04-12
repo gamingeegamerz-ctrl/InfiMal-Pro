@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use App\Models\Subscriber;
+use App\Services\ReputationService;
 use App\Models\SMTPAccount;
 use App\Services\EmailReputationService;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 class TrackingController extends Controller
 {
+    public function __construct(private readonly ReputationService $reputationService)
     public function __construct(private readonly EmailReputationService $reputation)
     {
     }
@@ -150,6 +152,13 @@ class TrackingController extends Controller
         return response()->json(['success' => true]);
     }
 
+            DB::table('campaigns')
+                ->where('id', $log->campaign_id)
+                ->increment('total_bounced');
+
+            $this->reputationService->applyBouncePenalty($log->smtp_id);
+            $this->reputationService->triggerFailsafeIfSpike($log->user_id, $log->campaign_id, $log->smtp_id);
+        }
     public function trackComplaint(Request $request): JsonResponse
     {
         $request->validate([

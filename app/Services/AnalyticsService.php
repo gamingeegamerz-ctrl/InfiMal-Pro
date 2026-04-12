@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\ConfigGuardService;
+use App\Services\ProductionSafetyService;
 use App\Models\CampaignAnalytics;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
@@ -10,6 +12,9 @@ use Illuminate\Support\Facades\DB;
 
 class AnalyticsService
 {
+    public function __construct(private readonly ProductionSafetyService $safety, private readonly ConfigGuardService $configGuard)
+    {
+    }
     public function userStats(int $userId): array
     {
         $base = EmailLog::where('user_id', $userId);
@@ -32,6 +37,12 @@ class AnalyticsService
             $campaign = CampaignAnalytics::whereHas('campaign', fn ($q) => $q->where('user_id', $userId));
             $smtpBase = EmailLog::where('user_id', $userId);
 
+            $expiredBase = DB::table('email_jobs')
+                ->where('user_id', $userId)
+                ->where('status', 'failed')
+                ->where('error_message', 'like', 'Expired%');
+
+
             $campaignStats = [
                 'sent' => $hasHourly ? (int) (clone $hourly)->sum('sent') : (clone $campaign)->where('event_type', 'sent')->count(),
                 'delivered' => $hasHourly ? (int) (clone $hourly)->sum('delivered') : (clone $campaign)->where('event_type', 'delivered')->count(),
@@ -52,6 +63,25 @@ class AnalyticsService
                     'provider_performance' => $this->providerPerformance($userId),
                 ],
                 'engagement_score' => $this->engagementScoreByCampaign($userId),
+
+
+                'system_state' => [
+                    'mode' => $this->safety->isGlobalPause() ? 'paused' : ($this->safety->isSafeMode() ? 'safe_mode' : 'normal'),
+                    'limits' => $this->configGuard->systemLimits(),
+                    'active_protections' => [
+                        'throttling' => $this->safety->isSafeMode(),
+                        'global_pause' => $this->safety->isGlobalPause(),
+                    ],
+                ],
+                'expiry_metrics' => [
+                    'expired_count' => (clone $expiredBase)->count(),
+                    'reasons' => (clone $expiredBase)
+                        ->select('error_message', DB::raw('COUNT(*) as total'))
+                        ->groupBy('error_message')
+                        ->orderByDesc('total')
+                        ->limit(5)
+                        ->get(),
+                ],
             ];
         });
     }
