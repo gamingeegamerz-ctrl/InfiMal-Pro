@@ -225,4 +225,13 @@ class User extends Authenticatable
             && $this->hasActiveLicense()
             && (!$this->otpRequired() || !is_null($this->otp_verified_at));
     }
+
+    /**
+     * Send the password reset notification email.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 }
+
