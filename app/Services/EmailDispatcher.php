@@ -20,6 +20,6 @@ class EmailDispatcher
         ]);
 
         // 2. Push to queue
-        SendEmailJob::dispatch($emailJob->id);
+        SendEmailJob::dispatch($emailJob->id)->onQueue('user_email_jobs');
     }
 }

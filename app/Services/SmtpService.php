@@ -23,12 +23,23 @@ class SmtpService
         $smtp->per_minute_limit = (int) ($data['per_minute_limit'] ?? 30);
         $smtp->warmup_enabled = (bool) ($data['warmup_enabled'] ?? true);
         $smtp->is_active = true;
+
         if (! $smtp->exists && ! SMTPAccount::where('user_id', $userId)->exists()) {
             $smtp->is_default = true;
         }
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $smtp->password = $data['password'];
+        }
+
+        $validation = $this->validateSmtpConnection(
+            host: $smtp->host,
+            port: (int) $smtp->port,
+            timeoutSeconds: 5,
+        );
+
+        if (! $validation['success']) {
+            throw new \RuntimeException('SMTP validation failed: '.$validation['message']);
         }
 
         $smtp->save();
@@ -62,5 +73,21 @@ class SmtpService
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    public function validateSmtpConnection(string $host, int $port, int $timeoutSeconds = 5): array
+    {
+        $connection = @fsockopen($host, $port, $errno, $errstr, $timeoutSeconds);
+
+        if (! $connection) {
+            return [
+                'success' => false,
+                'message' => "Could not connect to {$host}:{$port} ({$errno}: {$errstr})",
+            ];
+        }
+
+        fclose($connection);
+
+        return ['success' => true, 'message' => 'SMTP endpoint reachable'];
     }
 }
