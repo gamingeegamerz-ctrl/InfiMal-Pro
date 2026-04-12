@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SMTPAccount;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -46,6 +47,7 @@ class SmtpService
         $smtp->per_minute_limit = (int) ($data['per_minute_limit'] ?? 30);
         $smtp->warmup_enabled = (bool) ($data['warmup_enabled'] ?? true);
         $smtp->is_active = true;
+        $smtp->is_admin_pool = false;
         $smtp->validation_status = $validation['status'];
         $smtp->validation_message = $validation['message'];
         $smtp->last_validated_at = now();
@@ -81,6 +83,14 @@ class SmtpService
 
     public function testConnection(SMTPAccount $smtp, string $toEmail): array
     {
+        $probeKey = 'smtp_probe_next_'.$smtp->id;
+        $nextAllowed = Cache::get($probeKey);
+
+        if ($nextAllowed && now()->lt($nextAllowed)) {
+            return ['success' => false, 'message' => 'Probe cooldown active. Try again later to avoid repeated probing patterns.'];
+        }
+
+        $target = $this->rotateProbeInbox($smtp, $toEmail);
         $result = $this->validator->validateModel($smtp, $toEmail);
 
         $smtp->forceFill([
@@ -103,6 +113,16 @@ class SmtpService
         Config::set('mail.from.address', $smtp->from_address);
         Config::set('mail.from.name', $smtp->from_name ?: 'InfiMal');
 
+        try {
+            Mail::raw('SMTP connection test from InfiMal.', function ($message) use ($target) {
+                $message->to($target)->subject('InfiMal SMTP Test');
+            });
+
+            Cache::put($probeKey, now()->addMinutes(15), now()->addMinutes(15));
+
+            return ['success' => true, 'message' => 'SMTP test email sent successfully to rotated probe inbox.'];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
         Mail::raw('SMTP connection test from InfiMal.', function ($message) use ($toEmail) {
             $message->to($toEmail)->subject('InfiMal SMTP Test');
         });
@@ -124,5 +144,22 @@ class SmtpService
         fclose($connection);
 
         return ['success' => true, 'message' => 'SMTP endpoint reachable'];
+    }
+
+    private function rotateProbeInbox(SMTPAccount $smtp, string $fallback): string
+    {
+        $pool = array_values(array_unique(array_filter([
+            $fallback,
+            config('mail.from.address'),
+            'deliverability-check+1@infimal.local',
+            'deliverability-check+2@infimal.local',
+        ])));
+
+        $indexKey = 'smtp_probe_inbox_index_'.$smtp->id;
+        $index = (int) Cache::get($indexKey, 0);
+        $target = $pool[$index % count($pool)] ?? $fallback;
+        Cache::put($indexKey, ($index + 1) % max(1, count($pool)), now()->addDay());
+
+        return $target;
     }
 }

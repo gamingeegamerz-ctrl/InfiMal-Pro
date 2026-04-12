@@ -29,6 +29,18 @@ return [
         'enabled' => (bool) env('OPS_ALERTS_ENABLED', true),
     ],
 
+    'scheduler' => [
+        'window_minutes' => (int) env('INFIMAL_SCHEDULER_WINDOW_MINUTES', 10),
+        'max_jobs_per_run' => (int) env('INFIMAL_MAX_JOBS_PER_RUN', 5000),
+        'max_delay_hours' => (int) env('INFIMAL_MAX_DELAY_HOURS', 24),
+    ],
+    'workers' => [
+        'max_workers' => (int) env('INFIMAL_MAX_WORKERS', 20),
+        'target_jobs_per_worker' => (int) env('INFIMAL_TARGET_JOBS_PER_WORKER', 200),
+    ],
+    'admin_smtp' => [
+        'global_max_emails_per_day' => (int) env('INFIMAL_ADMIN_SMTP_GLOBAL_MAX_PER_DAY', 100000),
+        'max_per_campaign' => (int) env('INFIMAL_ADMIN_SMTP_MAX_PER_CAMPAIGN', 10000),
     'workers' => [
         'user_email_jobs' => [
             'max_processes' => (int) env('INFIMAL_USER_WORKERS', 8),

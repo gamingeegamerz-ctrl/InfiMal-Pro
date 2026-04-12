@@ -18,7 +18,7 @@ class SmtpController extends Controller
     public function index()
     {
         $userId = Auth::id();
-        $smtpSettings = SMTPAccount::ownedBy($userId)->latest()->get();
+        $smtpSettings = SMTPAccount::ownedBy($userId)->userOwned()->latest()->get();
 
         return view('smtp.index', [
             'smtpSettings' => $smtpSettings,
@@ -48,7 +48,7 @@ class SmtpController extends Controller
 
     private function resolveSmtpStatus(int $userId): string
     {
-        $smtp = SMTPAccount::ownedBy($userId)->orderByDesc('is_default')->latest('id')->first();
+        $smtp = SMTPAccount::ownedBy($userId)->userOwned()->orderByDesc('is_default')->latest('id')->first();
 
         if (!$smtp) {
             return 'Not Connected';
@@ -93,7 +93,7 @@ class SmtpController extends Controller
 
     public function show(string $id)
     {
-        $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
+        $smtp = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($id);
         return response()->json($smtp);
     }
 
@@ -104,7 +104,7 @@ class SmtpController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $smtp = SMTPAccount::ownedBy(Auth::id())->findOrFail($id);
+        $smtp = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($id);
 
         $data = $request->validate([
             'name' => 'nullable|string|max:255',
@@ -127,7 +127,7 @@ class SmtpController extends Controller
 
     public function test(Request $request, string $smtp)
     {
-        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($smtp);
         $data = $request->validate(['email' => 'nullable|email']);
         $target = $data['email'] ?? Auth::user()->email;
 
@@ -140,7 +140,7 @@ class SmtpController extends Controller
 
     public function toggle(string $smtp)
     {
-        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($smtp);
         $smtpModel->update(['is_active' => !$smtpModel->is_active]);
 
         return response()->json(['success' => true, 'status' => $smtpModel->is_active ? 'Active' : 'Failed']);
@@ -148,7 +148,7 @@ class SmtpController extends Controller
 
     public function setDefault(string $smtp)
     {
-        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($smtp);
         $this->smtpService->setDefault($smtpModel);
 
         return back()->with('success', 'Default SMTP updated.');
@@ -156,7 +156,7 @@ class SmtpController extends Controller
 
     public function verify(string $smtp)
     {
-        $smtpModel = SMTPAccount::ownedBy(Auth::id())->findOrFail($smtp);
+        $smtpModel = SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($smtp);
         $result = $this->smtpService->testConnection($smtpModel, Auth::user()->email);
         $smtpModel->update(['is_active' => $result['success']]);
 
@@ -169,6 +169,7 @@ class SmtpController extends Controller
     public function getCredentials()
     {
         $smtp = SMTPAccount::ownedBy(Auth::id())
+            ->userOwned()
             ->where('is_active', true)
             ->orderByDesc('is_default')
             ->latest('id')
@@ -191,7 +192,7 @@ class SmtpController extends Controller
 
     public function destroy(string $id)
     {
-        SMTPAccount::ownedBy(Auth::id())->findOrFail($id)->delete();
+        SMTPAccount::ownedBy(Auth::id())->userOwned()->findOrFail($id)->delete();
 
         return back()->with('success', 'SMTP deleted.');
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use App\Models\Subscriber;
+use App\Models\SMTPAccount;
 use App\Services\EmailReputationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -167,6 +168,8 @@ class TrackingController extends Controller
             'error_message' => $request->input('reason', 'Recipient complaint'),
         ]);
 
+        $this->applyRealtimeReputationGuard($log->smtp_id, $log->campaign_id, 'bounce');
+
         if ($log->recipient_email) {
             Subscriber::where('user_id', $log->user_id)
                 ->where('email', $log->recipient_email)
@@ -194,6 +197,51 @@ class TrackingController extends Controller
         $this->reputation->recordEvent($log->id, 'replied');
 
         return response()->json(['success' => true]);
+    }
+
+
+    public function trackComplaint(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email_log_id' => ['nullable', 'integer'],
+            'message_id' => ['nullable', 'string'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $log = $request->filled('email_log_id')
+            ? EmailLog::findOrFail((int) $request->input('email_log_id'))
+            : EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
+
+        $log->update([
+            'status' => 'complaint',
+            'error_message' => $request->input('reason'),
+        ]);
+
+        $this->applyRealtimeReputationGuard($log->smtp_id, $log->campaign_id, 'complaint');
+
+        return response()->json(['success' => true]);
+    }
+
+    private function applyRealtimeReputationGuard(?int $smtpId, ?int $campaignId, string $event): void
+    {
+        if (! $smtpId) {
+            return;
+        }
+
+        $penalty = $event === 'complaint' ? 10 : 3;
+        SMTPAccount::where('id', $smtpId)->decrement('reputation_score', $penalty);
+
+        $lastHour = EmailLog::where('smtp_id', $smtpId)
+            ->where('created_at', '>=', now()->subHour())
+            ->whereIn('status', ['bounced', 'complaint'])
+            ->count();
+
+        if ($lastHour >= 25) {
+            SMTPAccount::where('id', $smtpId)->update(['is_active' => false]);
+            if ($campaignId) {
+                DB::table('campaigns')->where('id', $campaignId)->update(['status' => 'paused']);
+            }
+        }
     }
 
     public function unsubscribe(Request $request): Response

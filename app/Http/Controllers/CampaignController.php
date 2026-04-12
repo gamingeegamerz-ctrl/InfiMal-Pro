@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\SendCampaignEmailJob;
 use App\Models\Campaign;
 use App\Models\EmailJob;
 use App\Models\MailingList;
@@ -14,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use App\Services\SchedulerService;
 use Illuminate\View\View;
 
 class CampaignController extends Controller
@@ -177,7 +177,7 @@ class CampaignController extends Controller
         return redirect()->route('campaigns.index')->with('success', 'Campaign deleted.');
     }
 
-    public function send(Campaign $campaign): RedirectResponse
+    public function send(Campaign $campaign, SchedulerService $scheduler): RedirectResponse
     {
         $campaign = Campaign::where('user_id', Auth::id())->findOrFail($campaign->id);
 
@@ -185,9 +185,9 @@ class CampaignController extends Controller
             abort(403, 'Access denied. Payment required.');
         }
 
-        // KEEP CODEX STRICT CHECK
         $smtp = SMTPAccount::ownedBy(Auth::id())
             ->where('is_active', true)
+            ->userOwned()
             ->orderByDesc('is_default')
             ->first();
 
@@ -198,11 +198,11 @@ class CampaignController extends Controller
             ->active()
             ->get();
 
-        // KEEP CODEX SAFETY
         abort_if($subscribers->isEmpty(), 422, 'This campaign has no active subscribers.');
 
+        $jobs = collect();
         foreach ($subscribers as $subscriber) {
-            $job = EmailJob::create([
+            $jobs->push(EmailJob::create([
                 'user_id' => Auth::id(),
                 'campaign_id' => $campaign->id,
                 'subscriber_id' => $subscriber->id,
@@ -215,6 +215,7 @@ class CampaignController extends Controller
                 'from_name' => $campaign->from_name,
                 'reply_to' => $campaign->reply_to,
                 'status' => 'queued',
+            ]));
                 'idempotency_key' => hash('sha256', implode('|', [
                     $campaign->id,
                     strtolower((string) $subscriber->email),
@@ -225,6 +226,8 @@ class CampaignController extends Controller
             SendCampaignEmailJob::dispatch($job->id)->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
         }
 
+        $scheduler->scheduleCampaignJobs($jobs, $smtp);
+
         $campaign->update([
             'status' => 'sending',
             'started_at' => now(),
@@ -232,7 +235,7 @@ class CampaignController extends Controller
         ]);
 
         return redirect()->route('campaigns.show', $campaign)
-            ->with('success', 'Campaign queued for delivery. Start a queue worker to process email jobs.');
+            ->with('success', 'Campaign queued for scheduled delivery with warmup enforcement.');
     }
 
     public function preview(Campaign $campaign): View
