@@ -128,6 +128,25 @@ Allow: /
 
 Sitemap: " . url('/sitemap.xml') . "
 ";
+        ['loc' => url('/'), 'changefreq' => 'daily', 'priority' => '1.0'],
+        ['loc' => url('/features'), 'changefreq' => 'weekly', 'priority' => '0.9'],
+        ['loc' => url('/pricing'), 'changefreq' => 'weekly', 'priority' => '0.9'],
+        ['loc' => url('/blog'), 'changefreq' => 'daily', 'priority' => '0.8'],
+    ];
+
+    foreach ($blogPosts as $post) {
+        $urls[] = ['loc' => url('/blog/' . $post['slug']), 'changefreq' => 'weekly', 'priority' => '0.7'];
+    }
+
+    return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml');
+})->name('sitemap');
+
+Route::get('/robots.txt', function () {
+    $content = implode(PHP_EOL, [
+        'User-agent: *',
+        'Allow: /',
+        'Sitemap: ' . url('/sitemap.xml'),
+    ]);
 
     return response($content, 200)->header('Content-Type', 'text/plain');
 })->name('robots');
@@ -174,12 +193,18 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+
     Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
     Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
     Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
     Route::get('/payment', [BillingController::class, 'index'])->name('payment');
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
+
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
+        ->middleware('throttle:payment')
+        ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
