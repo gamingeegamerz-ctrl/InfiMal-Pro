@@ -109,6 +109,31 @@ Route::get('/blog/{slug}', function (string $slug) use ($blogPosts) {
     ]]);
 })->name('blog.show');
 
+Route::get('/sitemap.xml', function () use ($blogPosts) {
+    $urls = [
+        ['loc' => url('/'), 'changefreq' => 'daily', 'priority' => '1.0'],
+        ['loc' => url('/features'), 'changefreq' => 'weekly', 'priority' => '0.9'],
+        ['loc' => url('/pricing'), 'changefreq' => 'weekly', 'priority' => '0.9'],
+        ['loc' => url('/blog'), 'changefreq' => 'daily', 'priority' => '0.8'],
+    ];
+
+    foreach ($blogPosts as $post) {
+        $urls[] = ['loc' => url('/blog/' . $post['slug']), 'changefreq' => 'weekly', 'priority' => '0.7'];
+    }
+
+    return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml');
+})->name('sitemap');
+
+Route::get('/robots.txt', function () {
+    $content = implode(PHP_EOL, [
+        'User-agent: *',
+        'Allow: /',
+        'Sitemap: ' . url('/sitemap.xml'),
+    ]);
+
+    return response($content, 200)->header('Content-Type', 'text/plain');
+})->name('robots');
+
 Route::redirect('/email-marketing-tool', '/features', 301);
 Route::redirect('/bulk-email-sender', '/features', 301);
 Route::redirect('/smtp-email-platform', '/features', 301);
@@ -151,32 +176,16 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
 
     Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
     Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
-
-
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
     Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
 
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
-    Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
-    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-
-    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
-    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
-
-Route::middleware(['auth', 'flow.state'])->group(function (): void {
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-
-    Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
-    Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
-
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
+        ->middleware('throttle:payment')
+        ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
 
@@ -190,41 +199,6 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
 });
 
 Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
-Route::middleware(['auth', 'flow.state', 'paid.access', 'subscription.active', 'usage.limits'])->group(function (): void {
-Route::post('/webhooks/paypal', [PaymentController::class, 'paypalWebhook'])
-    ->name('payment.webhook.paypal')
-    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
-Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])
-    ->name('billing.webhook.paypal')
-    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
-
-Route::middleware(['auth', 'flow.state'])->group(function (): void {
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->name('billing.checkout');
-    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
-    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-
-Route::middleware('auth')->group(function (): void {
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->name('billing.checkout');
-    Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->name('billing.webhook.paypal');
-    Route::get('/payment/success', [PaymentController::class, 'success'])->name('payment.success');
-    Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-
-    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->name('otp.verify.submit');
-    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->name('otp.verify.resend');
-
-    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('verification.send');
-});
-
-Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
-Route::middleware(['auth', 'flow.state', 'paid.access'])->group(function (): void {
-Route::middleware(['auth', 'paid.access'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::resource('campaigns', CampaignController::class);
