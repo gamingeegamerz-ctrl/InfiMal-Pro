@@ -111,6 +111,23 @@ Route::get('/blog/{slug}', function (string $slug) use ($blogPosts) {
 
 Route::get('/sitemap.xml', function () use ($blogPosts) {
     $urls = [
+        url('/'),
+        url('/features'),
+        url('/pricing'),
+        url('/blog'),
+        ...array_map(fn (array $post): string => url('/blog/' . $post['slug']), array_values($blogPosts)),
+    ];
+
+    return response()->view('marketing.sitemap', ['urls' => $urls])
+        ->header('Content-Type', 'application/xml');
+})->name('sitemap');
+
+Route::get('/robots.txt', function () {
+    $content = "User-agent: *
+Allow: /
+
+Sitemap: " . url('/sitemap.xml') . "
+";
         ['loc' => url('/'), 'changefreq' => 'daily', 'priority' => '1.0'],
         ['loc' => url('/features'), 'changefreq' => 'weekly', 'priority' => '0.9'],
         ['loc' => url('/pricing'), 'changefreq' => 'weekly', 'priority' => '0.9'],
@@ -182,13 +199,14 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
     Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
+    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
+    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
 
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
         ->middleware('throttle:payment')
         ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
     Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
     Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
