@@ -3,7 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - InfiMal</title>
+    <meta name="description" content="Log in to INFIMAL and manage your email marketing campaigns, SMTP settings, and automation workflows.">
+    <meta name="keywords" content="email marketing tool, bulk email sender, SMTP email sending, email automation software">
+    <link rel="canonical" href="{{ url('/login') }}">
+    <meta name="robots" content="noindex, nofollow">
+    <meta property="og:title" content="INFIMAL Login - Email Marketing Platform Access">
+    <meta property="og:description" content="Log in to INFIMAL and manage your email marketing campaigns, SMTP settings, and automation workflows.">
+    <meta property="og:url" content="{{ url('/login') }}">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="INFIMAL Login - Email Marketing Platform Access">
+    <meta name="twitter:description" content="Log in to INFIMAL and manage your email marketing campaigns, SMTP settings, and automation workflows.">
+    <title>INFIMAL Login - Email Marketing Platform Access</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
