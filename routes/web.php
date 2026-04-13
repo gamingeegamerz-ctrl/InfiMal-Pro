@@ -18,9 +18,101 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
-Route::view('/', 'public.index')->name('home');
-Route::view('/pricing', 'pricing')->name('pricing');
-Route::view('/features', 'features')->name('features');
+
+$blogPosts = [
+    'best-email-marketing-tools' => [
+        'slug' => 'best-email-marketing-tools',
+        'title' => 'Best Email Marketing Tools for Growth Teams',
+        'excerpt' => 'How to evaluate an email marketing tool by deliverability, automation, and scale.',
+        'date' => 'April 13, 2026',
+        'sections' => [
+            ['heading' => 'How to choose the right email marketing SaaS', 'paragraphs' => ['Choose a platform that supports segmentation, sender authentication, and clear analytics.', 'A modern email campaign platform should support both promotional and lifecycle automation.']],
+            ['heading' => 'Where INFIMAL fits', 'paragraphs' => ['INFIMAL combines SMTP email sending with campaign automation software and reputation-aware sending controls.']],
+        ],
+    ],
+    'how-to-send-bulk-emails-safely' => [
+        'slug' => 'how-to-send-bulk-emails-safely',
+        'title' => 'How to Send Bulk Emails Safely',
+        'excerpt' => 'Practical bulk email sender safeguards to protect deliverability.',
+        'date' => 'April 13, 2026',
+        'sections' => [
+            ['heading' => 'Warm up and authenticate your sender', 'paragraphs' => ['Use SPF, DKIM, and DMARC, then ramp volume gradually to build reputation.']],
+            ['heading' => 'Segment and throttle campaigns', 'paragraphs' => ['Send to engaged subscribers first and apply queue throttling to avoid spikes.']],
+        ],
+    ],
+    'smtp-vs-email-api' => [
+        'slug' => 'smtp-vs-email-api',
+        'title' => 'SMTP vs Email API: Which Sending Approach is Better?',
+        'excerpt' => 'Understand tradeoffs between SMTP email sending and API-based delivery.',
+        'date' => 'April 13, 2026',
+        'sections' => [
+            ['heading' => 'SMTP strengths', 'paragraphs' => ['SMTP is widely supported and easy to integrate with traditional systems.']],
+            ['heading' => 'API strengths', 'paragraphs' => ['Email APIs can provide richer event streaming and templating controls.']],
+        ],
+    ],
+    'avoid-spam-in-email-marketing' => [
+        'slug' => 'avoid-spam-in-email-marketing',
+        'title' => 'Avoid Spam in Email Marketing Campaigns',
+        'excerpt' => 'Tactics to keep campaigns out of spam folders.',
+        'date' => 'April 13, 2026',
+        'sections' => [
+            ['heading' => 'Content and list hygiene', 'paragraphs' => ['Avoid misleading subject lines and remove inactive contacts regularly.']],
+            ['heading' => 'Monitor engagement signals', 'paragraphs' => ['Track open, click, bounce, and complaint trends and react quickly.']],
+        ],
+    ],
+];
+
+Route::get('/', function () {
+    return view('marketing.home', [
+        'seo' => [
+            'title' => 'INFIMAL - Smart Email Marketing & Bulk Email Sending Platform',
+            'description' => 'INFIMAL is an intelligent email marketing platform with SMTP support, smart scheduling, automation, and high deliverability.',
+            'keywords' => 'email marketing tool, bulk email sender, SMTP email sending, email automation software, email campaign platform, send unlimited emails, email marketing SaaS',
+            'canonical' => url('/'),
+        ],
+        'schema' => [
+            ['@context' => 'https://schema.org', '@type' => 'Organization', 'name' => 'INFIMAL', 'url' => url('/')],
+            ['@context' => 'https://schema.org', '@type' => 'SoftwareApplication', 'name' => 'INFIMAL', 'applicationCategory' => 'BusinessApplication', 'operatingSystem' => 'Web', 'url' => url('/'), 'description' => 'Email marketing SaaS platform for bulk email sender and SMTP campaign automation.'],
+        ],
+    ]);
+})->name('home');
+
+Route::get('/pricing', fn () => view('marketing.pricing', ['seo' => [
+    'title' => 'INFIMAL Pricing - Email Campaign Platform Plans',
+    'description' => 'Explore INFIMAL pricing for email automation software, bulk email sender workflows, and SMTP email sending.',
+    'keywords' => 'email campaign platform pricing, email marketing SaaS pricing, bulk email sender plans',
+    'canonical' => url('/pricing'),
+]]))->name('pricing');
+
+Route::get('/features', fn () => view('marketing.features', ['seo' => [
+    'title' => 'INFIMAL Features - SMTP Email Sending & Automation Software',
+    'description' => 'Discover INFIMAL features for SMTP support, smart scheduling, automation, and high deliverability.',
+    'keywords' => 'SMTP email platform, email automation software, bulk email sender features',
+    'canonical' => url('/features'),
+]]))->name('features');
+
+Route::get('/blog', function () use ($blogPosts) {
+    return view('blog.index', ['posts' => array_values($blogPosts), 'seo' => [
+        'title' => 'INFIMAL Blog - Email Marketing Guides',
+        'description' => 'Read INFIMAL guides on email marketing tools, bulk email sender strategy, SMTP, and deliverability.',
+        'canonical' => url('/blog'),
+    ]]);
+})->name('blog.index');
+
+Route::get('/blog/{slug}', function (string $slug) use ($blogPosts) {
+    abort_unless(isset($blogPosts[$slug]), 404);
+    $post = $blogPosts[$slug];
+    return view('blog.show', ['post' => $post, 'seo' => [
+        'title' => 'INFIMAL Blog - ' . $post['title'],
+        'description' => $post['excerpt'],
+        'canonical' => url('/blog/' . $slug),
+    ]]);
+})->name('blog.show');
+
+Route::redirect('/email-marketing-tool', '/features', 301);
+Route::redirect('/bulk-email-sender', '/features', 301);
+Route::redirect('/smtp-email-platform', '/features', 301);
+
 Route::view('/contact', 'contact')->name('contact');
 Route::view('/about', 'about')->name('about');
 Route::view('/privacy', 'privacy')->name('privacy');

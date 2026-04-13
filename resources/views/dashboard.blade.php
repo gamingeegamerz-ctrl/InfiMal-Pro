@@ -3,8 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Manage bulk email campaigns, SMTP performance, and subscriber engagement in the INFIMAL dashboard.">
+    <meta name="keywords" content="email marketing tool, bulk email sender, SMTP email sending, email automation software">
+    <link rel="canonical" href="{{ url('/dashboard') }}">
+    <meta name="robots" content="noindex, nofollow">
+    <meta property="og:title" content="INFIMAL Dashboard - Email Campaign Management">
+    <meta property="og:description" content="Manage bulk email campaigns, SMTP performance, and subscriber engagement in the INFIMAL dashboard.">
+    <meta property="og:url" content="{{ url('/dashboard') }}">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="INFIMAL Dashboard - Email Campaign Management">
+    <meta name="twitter:description" content="Manage bulk email campaigns, SMTP performance, and subscriber engagement in the INFIMAL dashboard.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Dashboard - InfiMal</title>
+    <title>INFIMAL Dashboard - Email Campaign Management</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script>
