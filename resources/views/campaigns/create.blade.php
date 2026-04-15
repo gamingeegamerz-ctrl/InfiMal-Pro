@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -266,6 +268,11 @@
                         <span class="text-gray-600 dark:text-slate-400 font-medium text-sm">Theme</span>
                     </div>
                     <div class="theme-toggle-container" id="themeToggle">
+                        <div class="flex justify-center mb-6">
+                            <a href="{{ url('/') }}">
+                                <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                            </a>
+                        </div>
                         <div class="theme-toggle-sun">☀️</div>
                         <div class="theme-toggle-moon">🌙</div>
                         <div class="theme-toggle-handle"></div>

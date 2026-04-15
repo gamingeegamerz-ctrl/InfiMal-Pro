@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html class="dark" lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <!-- CSRF TOKEN MUST BE HERE -->
@@ -66,6 +68,9 @@
             <!-- SideNavBar (ADMIN VERSION) -->
             <nav class="flex-shrink-0 w-64 p-4">
                 <div class="flex flex-col h-full gap-4">
+                <a href="{{ url('/') }}" class="flex items-center">
+                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                </a>
                       <div class="flex items-center gap-3 p-2">
     <div class="p-2 rounded-full bg-purple-500/20 text-purple-500">
         <span class="material-symbols-outlined">admin_panel_settings</span>

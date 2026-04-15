@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html class="light" lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Payment Successful - InfiMal</title>
@@ -9,6 +11,11 @@
 </head>
 <body class="font-sans bg-gray-50 min-h-screen flex items-center justify-center">
     <div class="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+        <div class="flex justify-center mb-6">
+            <a href="{{ url('/') }}">
+                <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+            </a>
+        </div>
         <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>

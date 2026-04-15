@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -547,6 +549,11 @@
     <!-- Payment Method Modal -->
     <div id="paymentModal" class="modal-backdrop modal-hidden">
         <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div class="flex justify-center mb-6">
+                <a href="{{ url('/') }}">
+                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                </a>
+            </div>
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-gray-900 dark:text-white text-xl font-bold">Update Payment Method</h3>
                 <button onclick="closeModal('paymentModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl">&times;</button>

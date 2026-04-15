@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -443,6 +445,11 @@
                 <div class="px-6 py-4">
                     <div class="flex items-center justify-between">
                         <div class="flex-1 max-w-md">
+                            <div class="flex justify-center mb-6">
+                                <a href="{{ url('/') }}">
+                                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                                </a>
+                            </div>
                             <div class="relative">
                                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500">search</span>
                                 <input type="text" id="searchCampaigns" placeholder="Search campaigns..." class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100" />

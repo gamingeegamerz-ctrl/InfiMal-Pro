@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- CSRF TOKEN MUST BE HERE -->
@@ -31,6 +33,9 @@
     <!-- Admin Navigation -->
     <nav class="bg-gray-900 text-white p-4">
         <div class="container mx-auto flex justify-between items-center">
+        <a href="{{ url('/') }}" class="flex items-center">
+            <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+        </a>
             <div class="flex items-center space-x-4">
                 <a href="{{ route('admin.dashboard') }}" class="text-xl font-bold">
                     <i class="fas fa-crown mr-2"></i> InfiMal Admin
