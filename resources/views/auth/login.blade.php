@@ -14,7 +14,13 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="INFIMAL Login - Email Marketing Platform Access">
     <meta name="twitter:description" content="Log in to INFIMAL and manage your email marketing campaigns, SMTP settings, and automation workflows.">
+    
+    <!-- ========== FAVICON (SIRF M) ========== -->
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+    
     <title>INFIMAL Login - Email Marketing Platform Access</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -50,8 +56,16 @@
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-md">
         <div class="bg-white rounded-2xl shadow-2xl p-8">
-            <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+            
+            <!-- ========== BRAND LOGO (FULL TEXT) ========== -->
+            <div class="flex justify-center mb-6">
+                <a href="{{ url('/') }}">
+                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                </a>
+            </div>
+            
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Welcome Back</h2>
                 <p class="text-gray-600">Sign in to your InfiMal account</p>
             </div>
 
