@@ -38,7 +38,7 @@
 
             <div class="text-center mb-6">
                 <h1 class="text-2xl font-bold text-gray-900 mb-2">Forgot your password?</h1>
-                <p class="text-gray-600 text-sm">Email daalo, hum reset link seedha aapke inbox pe bhejenge.</p>
+                <p class="text-gray-600 text-sm">Enter your email address and we'll send you a password reset link.</p>
             </div>
 
             @if (session('status'))
@@ -73,8 +73,8 @@
             </form>
 
             <p class="text-center mt-6 text-sm text-gray-600">
-                Yaad aa gaya password?
-                <a href="{{ route('login') }}" class="text-blue-600 font-semibold hover:text-blue-700">Back to login</a>
+                Remember your password?
+                <a href="{{ route('login') }}" class="text-blue-600 font-semibold hover:text-blue-700">Back to Login</a>
             </p>
         </div>
     </div>
