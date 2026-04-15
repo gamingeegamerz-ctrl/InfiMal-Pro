@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reset Password - InfiMal</title>
+
+    <!-- ========== FAVICON (SIRF M) ========== -->
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -23,9 +28,17 @@
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-md">
         <div class="bg-white rounded-2xl shadow-2xl p-8">
+
+            <!-- ========== BRAND LOGO (FULL TEXT) ========== -->
+            <div class="flex justify-center mb-6">
+                <a href="{{ url('/') }}">
+                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                </a>
+            </div>
+
             <div class="text-center mb-6">
                 <h1 class="text-2xl font-bold text-gray-900 mb-2">Set New Password</h1>
-                <p class="text-gray-600 text-sm">Strong password set karo aur account secure rakho.</p>
+                <p class="text-gray-600 text-sm">Create a strong password to keep your account secure.</p>
             </div>
 
             <form method="POST" action="{{ route('password.store') }}" class="space-y-4">
