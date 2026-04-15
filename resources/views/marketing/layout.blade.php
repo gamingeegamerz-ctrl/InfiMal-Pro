@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $seo['title'] ?? 'INFIMAL' }}</title>
@@ -37,6 +39,11 @@
 
     <footer class="border-t mt-12">
         <div class="max-w-6xl mx-auto px-4 py-8 text-sm text-gray-600">
+            <div class="flex justify-center mb-6">
+                <a href="{{ url('/') }}">
+                    <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+                </a>
+            </div>
             <p>INFIMAL email marketing SaaS for bulk email sending and SMTP campaign automation.</p>
         </div>
     </footer>

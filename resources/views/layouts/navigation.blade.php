@@ -1,5 +1,8 @@
 <nav class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <a href="{{ url('/') }}" class="flex items-center">
+        <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+    </a>
         <div class="flex justify-between h-16">
             <div class="flex">
                 <!-- Logo -->

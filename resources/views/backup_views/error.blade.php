@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <title>Error - Subscribers</title>
     <style>
         body { font-family: Arial; padding: 20px; background: #f8d7da; color: #721c24; }
@@ -12,6 +14,11 @@
 </head>
 <body>
     <div class="container">
+        <div class="flex justify-center mb-6">
+            <a href="{{ url('/') }}">
+                <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+            </a>
+        </div>
         <h1>⚠️ Subscribers Page Error</h1>
         <div class="error">
             <strong>Error Message:</strong><br>

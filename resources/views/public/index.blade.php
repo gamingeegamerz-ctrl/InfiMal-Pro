@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InfiMal - Unlimited Email Sending | Professional Communication Platform</title>
@@ -52,6 +54,9 @@
     <!-- Navigation -->
     <nav class="fixed w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <a href="{{ url('/') }}" class="flex items-center">
+            <img src="{{ asset('logo.png') }}" alt="INFIMAL" class="h-12 w-auto">
+        </a>
             <div class="flex justify-between items-center h-16">
                 <div class="flex items-center">
                     <a href="/" class="text-2xl font-bold rainbow-text">InfiMal</a>
