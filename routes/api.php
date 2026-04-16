@@ -132,15 +132,32 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Stats
     Route::get('/stats', function (Request $request) {
-        $logs = \App\Models\EmailLog::where('user_id', $request->user()->id)
-            ->latest()
-            ->limit(30)
-            ->get();
+        $base = \App\Models\EmailLog::where('user_id', $request->user()->id);
+
+        $totalSent = (clone $base)->count();
+        $delivered = (clone $base)->where('status', 'delivered')->count();
+        $bounces = (clone $base)->where('status', 'bounced')->count();
+        $complaints = (clone $base)->whereNotNull('complained_at')->count();
+        $opens = (clone $base)->where('opened', true)->count();
+        $clicks = (clone $base)->where('clicked', true)->count();
+        $replies = (clone $base)->whereNotNull('replied_at')->count();
+
+        $rate = fn (int $value): float => $totalSent > 0 ? round(($value / $totalSent) * 100, 2) : 0.0;
 
         return response()->json([
-            'total_sent' => $logs->sum('sent_count'),
-            'bounces' => $logs->sum('bounce_count'),
-            'spam' => $logs->sum('spam_complaints'),
+            'total_sent' => $totalSent,
+            'delivered' => $delivered,
+            'bounces' => $bounces,
+            'complaints' => $complaints,
+            'opens' => $opens,
+            'clicks' => $clicks,
+            'replies' => $replies,
+            'delivery_rate' => $rate($delivered),
+            'bounce_rate' => $rate($bounces),
+            'complaint_rate' => $rate($complaints),
+            'open_rate' => $rate($opens),
+            'click_rate' => $rate($clicks),
+            'reply_rate' => $rate($replies),
         ]);
     });
 
@@ -167,5 +184,9 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])
         Route::post('/emails/send', [EmailSendController::class, 'send']);
     });
 
+
+Route::post('/track/bounce', [\App\Http\Controllers\TrackingController::class, 'trackBounce']);
 Route::post('/track/complaint', [\App\Http\Controllers\TrackingController::class, 'trackComplaint']);
 Route::post('/track/reply', [\App\Http\Controllers\TrackingController::class, 'trackReply']);
+Route::post('/track/delivered', [\App\Http\Controllers\TrackingController::class, 'trackDelivered']);
+Route::post('/track/click', [\App\Http\Controllers\TrackingController::class, 'trackClick']);

@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\EmailLog;
 use App\Models\SMTPAccount;
 use App\Models\Subscriber;
-use App\Services\ReputationService;
-use App\Models\SMTPAccount;
 use App\Services\EmailReputationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,32 +14,18 @@ use Illuminate\Support\Facades\DB;
 
 class TrackingController extends Controller
 {
-    public function __construct(private readonly ReputationService $reputationService)
     public function __construct(private readonly EmailReputationService $reputation)
     {
     }
 
     public function openById(int $id): Response
     {
-        $firstOpen = EmailLog::whereKey($id)
-            ->whereNull('opened_at')
-            ->update(['opened' => true, 'opened_at' => now()]) > 0;
-
         $log = EmailLog::find($id);
 
-        if ($log && $firstOpen) {
-            DB::table('opens')->insert([
-                'email_log_id' => $log->id,
-                'campaign_id' => $log->campaign_id,
-                'user_id' => $log->user_id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            DB::table('campaigns')
-                ->where('id', $log->campaign_id)
-                ->increment('total_opened');
-
+        if ($log && ! $log->opened_at) {
+            $log->forceFill(['opened' => true, 'opened_at' => now()])->save();
+            $this->insertEvent($log, 'opened');
+            $this->incrementCampaignCounter($log->campaign_id, 'total_opened');
             $this->reputation->recordEvent($log->id, 'opened');
         }
 
@@ -50,37 +34,22 @@ class TrackingController extends Controller
 
     public function clickById(Request $request, int $id): RedirectResponse
     {
-        $firstClick = EmailLog::whereKey($id)
-            ->whereNull('clicked_at')
-            ->update(['clicked' => true, 'clicked_at' => now()]) > 0;
-
+        $destination = (string) $request->query('url', '/');
         $log = EmailLog::find($id);
 
-        if ($log && $firstClick) {
-            DB::table('clicks')->insert([
-                'email_log_id' => $log->id,
-                'campaign_id' => $log->campaign_id,
-                'user_id' => $log->user_id,
-                'url' => (string) $request->query('url', '/'),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            DB::table('campaigns')
-                ->where('id', $log->campaign_id)
-                ->increment('total_clicked');
-
+        if ($log && ! $log->clicked_at) {
+            $log->forceFill(['clicked' => true, 'clicked_at' => now()])->save();
+            $this->insertEvent($log, 'clicked', ['url' => $destination]);
+            $this->incrementCampaignCounter($log->campaign_id, 'total_clicked');
             $this->reputation->recordEvent($log->id, 'clicked');
         }
 
-        return redirect()->away((string) $request->query('url', '/'));
+        return redirect()->away($destination);
     }
 
     public function trackOpen(Request $request): Response
     {
-        return $request->filled('id')
-            ? $this->openById((int) $request->query('id'))
-            : $this->pixel();
+        return $request->filled('id') ? $this->openById((int) $request->query('id')) : $this->pixel();
     }
 
     public function trackClick(Request $request): RedirectResponse
@@ -92,53 +61,51 @@ class TrackingController extends Controller
         return redirect()->away((string) $request->query('url', '/'));
     }
 
+    public function trackDelivered(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email_log_id' => ['nullable', 'integer'],
+            'message_id' => ['nullable', 'string'],
+        ]);
+
+        $log = $this->resolveEmailLog($request);
+
+        if (! $log) {
+            return response()->json(['success' => false, 'message' => 'Missing delivery identifier.'], 422);
+        }
+
+        $log->forceFill(['status' => 'delivered'])->save();
+        $this->insertEvent($log, 'delivered');
+        $this->reputation->recordEvent($log->id, 'delivered');
+
+        return response()->json(['success' => true]);
+    }
+
     public function trackBounce(Request $request): JsonResponse
     {
-        $log = null;
+        $request->validate([
+            'email_log_id' => ['nullable', 'integer'],
+            'message_id' => ['nullable', 'string'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'type' => ['nullable', 'in:soft,hard'],
+        ]);
 
-        if ($request->filled('email_log_id')) {
-            $request->validate([
-                'email_log_id' => ['required', 'integer'],
-                'reason' => ['nullable', 'string', 'max:1000'],
-                'type' => ['nullable', 'in:soft,hard'],
-            ]);
-
-            $log = EmailLog::findOrFail((int) $request->input('email_log_id'));
-        } elseif ($request->filled('message_id')) {
-            $request->validate([
-                'message_id' => ['required', 'string'],
-                'reason' => ['nullable', 'string', 'max:1000'],
-                'type' => ['nullable', 'in:soft,hard'],
-            ]);
-
-            $log = EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
-        }
+        $log = $this->resolveEmailLog($request);
 
         if (! $log) {
             return response()->json(['success' => false, 'message' => 'Missing bounce identifier.'], 422);
         }
 
         $type = $request->input('type', 'hard');
-        $eventType = $type === 'soft' ? 'soft_bounce' : 'hard_bounce';
 
-        $log->update([
+        $log->forceFill([
             'status' => $type === 'soft' ? 'failed' : 'bounced',
             'bounced_at' => now(),
             'error_message' => $request->input('reason'),
-        ]);
+        ])->save();
 
-        DB::table('bounces')->insert([
-            'email_log_id' => $log->id,
-            'campaign_id' => $log->campaign_id,
-            'user_id' => $log->user_id,
-            'reason' => $request->input('reason'),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('campaigns')
-            ->where('id', $log->campaign_id)
-            ->increment('total_bounced');
+        $this->insertEvent($log, $type === 'soft' ? 'soft_bounce' : 'hard_bounce', ['reason' => $request->input('reason')]);
+        $this->incrementCampaignCounter($log->campaign_id, 'total_bounced');
 
         if ($log->recipient_email && $type === 'hard') {
             Subscriber::where('user_id', $log->user_id)
@@ -146,19 +113,12 @@ class TrackingController extends Controller
                 ->update(['status' => 'suppressed']);
         }
 
-        $this->reputation->recordEvent($log->id, $eventType, $request->input('reason'));
+        $this->reputation->recordEvent($log->id, $type === 'soft' ? 'soft_bounce' : 'hard_bounce', $request->input('reason'));
         $this->autoPauseIfAnomaly($log->smtp_id);
 
         return response()->json(['success' => true]);
     }
 
-            DB::table('campaigns')
-                ->where('id', $log->campaign_id)
-                ->increment('total_bounced');
-
-            $this->reputationService->applyBouncePenalty($log->smtp_id);
-            $this->reputationService->triggerFailsafeIfSpike($log->user_id, $log->campaign_id, $log->smtp_id);
-        }
     public function trackComplaint(Request $request): JsonResponse
     {
         $request->validate([
@@ -167,17 +127,19 @@ class TrackingController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $log = $request->filled('email_log_id')
-            ? EmailLog::findOrFail((int) $request->input('email_log_id'))
-            : EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
+        $log = $this->resolveEmailLog($request);
 
-        $log->update([
+        if (! $log) {
+            return response()->json(['success' => false, 'message' => 'Missing complaint identifier.'], 422);
+        }
+
+        $log->forceFill([
             'status' => 'failed',
             'complained_at' => now(),
             'error_message' => $request->input('reason', 'Recipient complaint'),
-        ]);
+        ])->save();
 
-        $this->applyRealtimeReputationGuard($log->smtp_id, $log->campaign_id, 'bounce');
+        $this->insertEvent($log, 'complaint', ['reason' => $request->input('reason')]);
 
         if ($log->recipient_email) {
             Subscriber::where('user_id', $log->user_id)
@@ -198,59 +160,17 @@ class TrackingController extends Controller
             'message_id' => ['nullable', 'string'],
         ]);
 
-        $log = $request->filled('email_log_id')
-            ? EmailLog::findOrFail((int) $request->input('email_log_id'))
-            : EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
+        $log = $this->resolveEmailLog($request);
 
-        $log->update(['replied_at' => now()]);
+        if (! $log) {
+            return response()->json(['success' => false, 'message' => 'Missing reply identifier.'], 422);
+        }
+
+        $log->forceFill(['replied_at' => now()])->save();
+        $this->insertEvent($log, 'replied');
         $this->reputation->recordEvent($log->id, 'replied');
 
         return response()->json(['success' => true]);
-    }
-
-
-    public function trackComplaint(Request $request): JsonResponse
-    {
-        $request->validate([
-            'email_log_id' => ['nullable', 'integer'],
-            'message_id' => ['nullable', 'string'],
-            'reason' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $log = $request->filled('email_log_id')
-            ? EmailLog::findOrFail((int) $request->input('email_log_id'))
-            : EmailLog::where('message_id', (string) $request->input('message_id'))->firstOrFail();
-
-        $log->update([
-            'status' => 'complaint',
-            'error_message' => $request->input('reason'),
-        ]);
-
-        $this->applyRealtimeReputationGuard($log->smtp_id, $log->campaign_id, 'complaint');
-
-        return response()->json(['success' => true]);
-    }
-
-    private function applyRealtimeReputationGuard(?int $smtpId, ?int $campaignId, string $event): void
-    {
-        if (! $smtpId) {
-            return;
-        }
-
-        $penalty = $event === 'complaint' ? 10 : 3;
-        SMTPAccount::where('id', $smtpId)->decrement('reputation_score', $penalty);
-
-        $lastHour = EmailLog::where('smtp_id', $smtpId)
-            ->where('created_at', '>=', now()->subHour())
-            ->whereIn('status', ['bounced', 'complaint'])
-            ->count();
-
-        if ($lastHour >= 25) {
-            SMTPAccount::where('id', $smtpId)->update(['is_active' => false]);
-            if ($campaignId) {
-                DB::table('campaigns')->where('id', $campaignId)->update(['status' => 'paused']);
-            }
-        }
     }
 
     public function unsubscribe(Request $request): Response
@@ -270,31 +190,6 @@ class TrackingController extends Controller
         return response('You have been unsubscribed.', 200);
     }
 
-    private function autoPauseIfAnomaly(?int $smtpId): void
-    {
-        if (! $smtpId) {
-            return;
-        }
-
-        $smtp = SMTPAccount::find($smtpId);
-        if (! $smtp) {
-            return;
-        }
-
-        if ((float) $smtp->bounce_rate >= 0.08 || (float) $smtp->complaint_rate >= 0.005) {
-            $smtp->update(['is_active' => false, 'validation_status' => 'risky', 'validation_message' => 'Auto-paused due to bounce/complaint anomaly']);
-        }
-    }
-
-    private function pixel(): Response
-    {
-        $pixel = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Zr90AAAAASUVORK5CYII=');
-
-        return response($pixel, 200)
-            ->header('Content-Type', 'image/png')
-            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-
     public static function processEmailContent(string $htmlContent, int $logId): string
     {
         $pixel = '<img src="' . url('/track/open/' . $logId . '.png') . '" width="1" height="1" style="display:none;" alt="" />';
@@ -311,5 +206,70 @@ class TrackingController extends Controller
 
             return str_replace($originalUrl, $trackingUrl, $matches[0]);
         }, $htmlContent) ?? $htmlContent;
+    }
+
+    private function resolveEmailLog(Request $request): ?EmailLog
+    {
+        if ($request->filled('email_log_id')) {
+            return EmailLog::find((int) $request->input('email_log_id'));
+        }
+
+        if ($request->filled('message_id')) {
+            return EmailLog::where('message_id', (string) $request->input('message_id'))->first();
+        }
+
+        return null;
+    }
+
+    private function insertEvent(EmailLog $log, string $event, array $metadata = []): void
+    {
+        $history = is_array($log->metadata) ? $log->metadata : [];
+        $history['events'] = $history['events'] ?? [];
+        $history['events'][] = array_filter([
+            'event' => $event,
+            'at' => now()->toIso8601String(),
+            'metadata' => $metadata ?: null,
+        ]);
+
+        $log->forceFill(['metadata' => $history])->save();
+    }
+
+    private function incrementCampaignCounter(?int $campaignId, string $column): void
+    {
+        if (! $campaignId || ! DB::getSchemaBuilder()->hasColumn('campaigns', $column)) {
+            return;
+        }
+
+        DB::table('campaigns')->where('id', $campaignId)->increment($column);
+    }
+
+    private function autoPauseIfAnomaly(?int $smtpId): void
+    {
+        if (! $smtpId) {
+            return;
+        }
+
+        $smtp = SMTPAccount::find($smtpId);
+
+        if (! $smtp) {
+            return;
+        }
+
+        if ((float) $smtp->bounce_rate >= 0.08 || (float) $smtp->complaint_rate >= 0.005) {
+            $smtp->update([
+                'is_active' => false,
+                'validation_status' => 'risky',
+                'validation_message' => 'Auto-paused due to bounce/complaint anomaly',
+            ]);
+        }
+    }
+
+    private function pixel(): Response
+    {
+        $pixel = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Zr90AAAAASUVORK5CYII=');
+
+        return response($pixel, 200)
+            ->header('Content-Type', 'image/png')
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
 }
