@@ -14,6 +14,7 @@ use App\Http\Controllers\SmtpController;
 use App\Http\Controllers\SenderDomainController;
 use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TrackingController;
+use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
@@ -120,25 +121,6 @@ Route::get('/sitemap.xml', function () use ($blogPosts) {
 
     return response()->view('marketing.sitemap', ['urls' => $urls])
         ->header('Content-Type', 'application/xml');
-})->name('sitemap');
-
-Route::get('/robots.txt', function () {
-    $content = "User-agent: *
-Allow: /
-
-Sitemap: " . url('/sitemap.xml') . "
-";
-        ['loc' => url('/'), 'changefreq' => 'daily', 'priority' => '1.0'],
-        ['loc' => url('/features'), 'changefreq' => 'weekly', 'priority' => '0.9'],
-        ['loc' => url('/pricing'), 'changefreq' => 'weekly', 'priority' => '0.9'],
-        ['loc' => url('/blog'), 'changefreq' => 'daily', 'priority' => '0.8'],
-    ];
-
-    foreach ($blogPosts as $post) {
-        $urls[] = ['loc' => url('/blog/' . $post['slug']), 'changefreq' => 'weekly', 'priority' => '0.7'];
-    }
-
-    return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml');
 })->name('sitemap');
 
 Route::get('/robots.txt', function () {
@@ -252,6 +234,15 @@ Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(
     Route::post('/smtp/{smtp}/verify', [SmtpController::class, 'verify'])->name('smtp.verify');
     Route::post('/smtp/{smtp}/set-default', [SmtpController::class, 'setDefault'])->name('smtp.set-default');
     Route::post('/smtp/{smtp}/toggle', [SmtpController::class, 'toggle'])->name('smtp.toggle');
+
+    Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+    Route::get('/templates/create', [TemplateController::class, 'create'])->name('templates.create');
+    Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
+    Route::get('/templates/{id}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+    Route::put('/templates/{id}', [TemplateController::class, 'update'])->name('templates.update');
+    Route::delete('/templates/{id}', [TemplateController::class, 'destroy'])->name('templates.destroy');
+    Route::post('/templates/{id}/duplicate', [TemplateController::class, 'duplicate'])->name('templates.duplicate');
+    Route::get('/templates/{id}/preview', [TemplateController::class, 'preview'])->name('templates.preview');
 
     Route::prefix('profile')->name('profile.')->group(function (): void {
         Route::get('/', [ProfileController::class, 'index'])->name('index');

@@ -40,5 +40,6 @@ class EmailLog extends Model
         'complained_at' => 'datetime',
         'replied_at' => 'datetime',
         'sent_at' => 'datetime',
+        'metadata' => 'array',
     ];
 }

@@ -31,8 +31,55 @@ class SmtpController extends Controller
                 'total_sent' => DB::table('email_logs')->where('user_id', $userId)->count(),
                 'success_rate' => $this->successRate($userId),
             ],
+            'domainHealth' => $this->domainHealthSnapshot($smtpSettings->first()),
         ]);
     }
+
+    private function domainHealthSnapshot(?SMTPAccount $smtp): array
+    {
+        if (! $smtp || ! $smtp->from_address) {
+            return [
+                'domain' => null,
+                'spf' => false,
+                'dkim' => false,
+                'dmarc' => false,
+                'reputation_score' => null,
+                'warmup_stage' => 'not_started',
+            ];
+        }
+
+        $domain = substr(strrchr($smtp->from_address, '@') ?: '', 1);
+        if (! $domain) {
+            return [
+                'domain' => null,
+                'spf' => false,
+                'dkim' => false,
+                'dmarc' => false,
+                'reputation_score' => null,
+                'warmup_stage' => 'not_started',
+            ];
+        }
+
+        $txt = @dns_get_record($domain, DNS_TXT) ?: [];
+        $dmarc = @dns_get_record('_dmarc.' . $domain, DNS_TXT) ?: [];
+        $dkim = @dns_get_record('default._domainkey.' . $domain, DNS_TXT) ?: [];
+
+        $hasSpf = collect($txt)->contains(fn ($record) => str_contains(($record['txt'] ?? ''), 'v=spf1'));
+        $hasDmarc = collect($dmarc)->contains(fn ($record) => str_contains(($record['txt'] ?? ''), 'v=DMARC1'));
+        $hasDkim = ! empty($dkim);
+
+        $score = max(0, min(100, (int) round((float) ($smtp->reputation_score ?? 100))));
+
+        return [
+            'domain' => $domain,
+            'spf' => $hasSpf,
+            'dkim' => $hasDkim,
+            'dmarc' => $hasDmarc,
+            'reputation_score' => $score,
+            'warmup_stage' => $smtp->warmup_enabled ? ($score >= 80 ? 'stage_3_stable' : ($score >= 60 ? 'stage_2_ramping' : 'stage_1_new')) : 'disabled',
+        ];
+    }
+
 
     private function successRate(int $userId): float
     {
