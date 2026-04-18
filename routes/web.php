@@ -20,6 +20,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
 
+
+
+
 $blogPosts = [
     'best-email-marketing-tools' => [
         'slug' => 'best-email-marketing-tools',
