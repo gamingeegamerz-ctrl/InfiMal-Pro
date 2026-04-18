@@ -140,12 +140,12 @@ Route::redirect('/email-marketing-tool', '/features', 301);
 Route::redirect('/bulk-email-sender', '/features', 301);
 Route::redirect('/smtp-email-platform', '/features', 301);
 
-Route::view('/contact', 'contact')->name('contact');
-Route::view('/about', 'about')->name('about');
-Route::view('/privacy', 'privacy')->name('privacy');
-Route::view('/terms', 'terms')->name('terms');
+Route::view('/contact', 'public.contact')->name('contact');
+Route::view('/about', 'public.about')->name('about');
+Route::view('/privacy', 'public.privacy')->name('privacy');
+Route::view('/terms', 'public.terms')->name('terms');
 Route::view('/security', 'security')->name('security');
-Route::view('/refund', 'refund')->name('refund');
+Route::view('/refund', 'public.refund')->name('refund');
 Route::view('/help-center', 'help-center')->name('help.center');
 
 Route::middleware('guest')->group(function (): void {
