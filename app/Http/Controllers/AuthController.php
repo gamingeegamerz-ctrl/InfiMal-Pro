@@ -46,15 +46,7 @@ class AuthController extends Controller
 
         Log::channel('security')->info('Login succeeded', ['user_id' => $user->id, 'ip' => $request->ip()]);
 
-        if (! $user->hasPaid()) {
-            return redirect()->route('payment');
-        }
-
-        if (! $user->otp_verified_at) {
-            return redirect()->route('otp.verify.form');
-        }
-
-        return redirect()->route('dashboard');
+        return $this->authenticated($request, $user);
     }
 
     public function register(Request $request): RedirectResponse
@@ -117,4 +109,17 @@ class AuthController extends Controller
             ->route('login')
             ->with('success', 'Logged out successfully!');
     }
+    protected function authenticated(Request $request, User $user): RedirectResponse
+    {
+        if ($user->hasPaidAccess()) {
+            return redirect()->route('dashboard');
+        }
+
+        if ($user->hasPaid() && ! $user->otp_verified_at) {
+            return redirect()->route('otp.verify.form');
+        }
+
+        return redirect()->route('billing');
+    }
+
 }

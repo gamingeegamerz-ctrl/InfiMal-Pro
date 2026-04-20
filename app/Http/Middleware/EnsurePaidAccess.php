@@ -16,12 +16,26 @@ class EnsurePaidAccess
             return redirect()->route('login');
         }
 
-        if (! $user->hasPaid()) {
-            return redirect()->route('payment')->with('error', 'Payment is required to access this area.');
+        if ($user->is_admin) {
+            return $next($request);
         }
 
-        if (! $user->otp_verified_at) {
-            return redirect()->route('otp.verify.form')->with('error', 'Verify OTP before accessing the app.');
+        $allowedRoutes = [
+            'billing',
+            'payment.success',
+            'payment.cancel',
+            'otp.verify.form',
+            'otp.verify.submit',
+            'otp.verify.resend',
+        ];
+
+        if ($request->route() && in_array($request->route()->getName(), $allowedRoutes, true)) {
+            return $next($request);
+        }
+
+        if (! $user->hasPaidAccess()) {
+            return redirect()->route('billing')
+                ->with('error', 'Complete payment & OTP verification.');
         }
 
         return $next($request);

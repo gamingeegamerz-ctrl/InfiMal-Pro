@@ -156,37 +156,22 @@ class User extends Authenticatable
 
     
     /**
-     * Check if user has paid (Admin always returns true)
+     * Check if user has paid
      */
     public function hasPaid(): bool
     {
-        // Admin always has paid access
-        if ($this->is_admin) {
-            return true;
-        }
-        
-        // Normal user payment check
-        return (bool) ($this->is_paid || $this->payment_status === 'paid' || !is_null($this->paid_at));
+        return (bool) ($this->is_paid || $this->payment_status === 'paid' || ! is_null($this->paid_at));
     }
 
     /**
-     * Check if user has active license (Admin always returns true)
+     * Check if user has active license
      */
     public function hasActiveLicense(): bool
     {
-        if ($this->is_admin) {
-            return true;
-        }
-
-        if (! empty($this->license_key)) {
-            return $this->licenses()
-                ->where('license_key', $this->license_key)
-                ->where('status', 'active')
-                ->exists();
-        }
-
-        // Check via activeLicense relationship
-        return $this->activeLicense()->exists();
+        return $this->licenses()
+            ->where('status', 'active')
+            ->where('is_active', true)
+            ->exists();
     }
 
     /**
@@ -215,16 +200,15 @@ class User extends Authenticatable
 
     public function hasPaidAccess(): bool
     {
-        // Admin always has full access
         if ($this->is_admin) {
             return true;
         }
-        
-        // Normal user checks
+
         return $this->hasPaid()
             && $this->hasActiveLicense()
-            && (!$this->otpRequired() || !is_null($this->otp_verified_at));
+            && ! is_null($this->otp_verified_at);
     }
+
 
 }
 
