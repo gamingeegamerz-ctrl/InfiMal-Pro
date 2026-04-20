@@ -244,9 +244,22 @@ class PaymentController extends Controller
             'onboarding_step' => 'active',
         ])->save();
 
+        License::firstOrCreate(
+            ['user_id' => $user->id, 'status' => 'active'],
+            [
+                'license_key' => License::generateLicenseKey(),
+                'plan_type' => 'Premium',
+                'price' => (float) self::PRICE,
+                'duration_days' => 36500,
+                'is_active' => true,
+                'is_lifetime' => true,
+                'expires_at' => null,
+            ]
+        );
+
         $request->session()->put('onboarding_step', 'active');
 
-        return redirect()->route('dashboard')->with('success', 'OTP verified. Welcome to InfiMal Pro.');
+        return redirect()->route('billing')->with('success', 'OTP verified! Here is your invoice.');
     }
 
     private function finalizeSuccessfulPayment(User $user, string $paymentId, array $metadata = []): void
@@ -264,20 +277,6 @@ class PaymentController extends Controller
                     'metadata' => $metadata,
                 ]
             );
-
-            License::firstOrCreate(
-                ['user_id' => $user->id, 'status' => 'active'],
-                [
-                    'license_key' => License::generateLicenseKey(),
-                    'plan_type' => 'Premium',
-                    'price' => (float) self::PRICE,
-                    'duration_days' => 36500,
-                    'is_active' => true,
-                    'is_lifetime' => true,
-                    'expires_at' => null,
-                ]
-            );
-
             $user->forceFill([
                 'payment_status' => 'paid',
                 'is_paid' => true,
