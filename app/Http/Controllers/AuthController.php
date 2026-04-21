@@ -123,4 +123,15 @@ class AuthController extends Controller
     }
 
 
+        if ($user->hasPaidAccess()) {
+            return redirect()->route('dashboard');
+        }
+
+        if ($user->hasPaid() && ! $user->otp_verified_at) {
+            return redirect()->route('otp.verify.form');
+        }
+
+        return redirect()->route('billing');
+    }
+
 }

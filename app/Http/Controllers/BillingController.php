@@ -21,6 +21,12 @@ class BillingController extends Controller
 
         if (! $user->is_verified) {
             return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to continue.');
+        if ($user->hasPaidAccess()) {
+            return redirect()->route('dashboard')->with('success', 'You already have active access.');
+        }
+
+        if ($user->hasPaid() && ! $user->otp_verified_at) {
+            return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to complete activation.');
         }
 
         $license = License::where('user_id', $user->id)->latest()->first();

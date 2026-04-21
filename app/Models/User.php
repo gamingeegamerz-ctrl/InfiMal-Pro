@@ -218,7 +218,11 @@ class User extends Authenticatable
         }
 
         return (bool) ($this->is_paid && $this->is_verified);
+        return $this->hasPaid()
+            && $this->hasActiveLicense()
+            && ! is_null($this->otp_verified_at);
     }
+
 
 }
 

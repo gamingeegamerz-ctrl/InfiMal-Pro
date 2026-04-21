@@ -68,6 +68,32 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
     Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
 
+Route::get('/payment', function () {
+    if (! auth()->check()) {
+        return redirect()->route('login');
+    }
+
+    $user = auth()->user();
+
+    if ($user->hasPaidAccess()) {
+        return redirect()->route('dashboard')->with('success', 'You already have active access.');
+    }
+
+    if ($user->hasPaid() && ! $user->otp_verified_at) {
+        return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to complete activation.');
+    }
+
+    return redirect()->route('billing');
+})->name('payment');
+
+Route::middleware(['auth', 'flow.state'])->group(function (): void {
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
+
+    Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
+    Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
+    Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
+    Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
+
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
         ->middleware('throttle:payment')
         ->name('billing.checkout');
