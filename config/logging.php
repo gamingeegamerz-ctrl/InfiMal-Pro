@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    'default' => env('LOG_CHANNEL', 'single'),
 
     /*
     |--------------------------------------------------------------------------
@@ -54,8 +54,13 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks,alerts')),
-            'channels' => explode(',', (string) env('LOG_STACK', 'daily,security,payments,webhooks')),
+            'channels' => array_values(array_filter([
+                'daily',
+                'security',
+                'payments',
+                'webhooks',
+                env('LOG_SLACK_WEBHOOK_URL') ? 'slack' : null,
+            ])),
             'ignore_exceptions' => false,
         ],
 
@@ -102,7 +107,7 @@ return [
 
         'alerts' => [
             'driver' => 'stack',
-            'channels' => array_filter(['daily', env('LOG_ALERT_CHANNEL', 'slack')]),
+            'channels' => array_values(array_filter(['daily', env('LOG_SLACK_WEBHOOK_URL') ? 'slack' : null])),
             'ignore_exceptions' => true,
         ],
 

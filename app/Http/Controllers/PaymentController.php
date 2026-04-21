@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendOtpMailJob;
+use App\Models\Invoice;
 use App\Models\License;
+use App\Models\OtpCode;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
 class PaymentController extends Controller
@@ -22,14 +25,40 @@ class PaymentController extends Controller
     private const PRODUCT = 'InfiMal Pro Lifetime';
     private const OTP_TTL_MINUTES = 15;
     private const OTP_RESEND_COOLDOWN_SECONDS = 60;
-    private const OTP_MAX_FAILED_ATTEMPTS = 5;
-    private const OTP_LOCK_MINUTES = 15;
+
+    public function showPaymentPage(Request $request): View|RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->is_admin || ($user->is_paid && $user->is_verified)) {
+            return redirect()->route('dashboard')->with('success', 'You already have active access.');
+        }
+
+        if ($user->is_paid && ! $user->is_verified) {
+            return redirect()->route('otp.verify.form')->with('info', 'Payment done. Please verify OTP.');
+        }
+
+        return view('billing.index', [
+            'user' => $user,
+            'planName' => 'InfiMal Pro',
+            'price' => (float) self::PRICE,
+            'paypalClientId' => config('services.paypal.client_id'),
+            'paypalMode' => config('services.paypal.mode', 'sandbox'),
+            'features' => [
+                'Unlimited email sending through your own SMTP accounts',
+                'Campaign management and audience segmentation',
+                'Open, click, and bounce analytics',
+                'Per-user SMTP isolation and secure credential storage',
+                'Lifetime access after verified one-time payment',
+            ],
+        ]);
+    }
 
     public function createOrder(Request $request): JsonResponse|RedirectResponse
     {
         $user = $request->user();
 
-        if ($user->hasPaid() && $user->otp_verified_at) {
+        if ($user->is_paid && $user->is_verified) {
             return $request->expectsJson()
                 ? response()->json(['message' => 'Account already active.'], Response::HTTP_CONFLICT)
                 : redirect()->route('dashboard');
@@ -76,9 +105,6 @@ class PaymentController extends Controller
             ]
         );
 
-        $user->forceFill(['onboarding_step' => 'payment_required'])->save();
-        $request->session()->put('onboarding_step', 'payment_required');
-
         return $request->expectsJson()
             ? response()->json(['approval_url' => $approvalUrl, 'order_id' => $payload['id']])
             : redirect()->away($approvalUrl);
@@ -110,12 +136,12 @@ class PaymentController extends Controller
         $captureId = (string) data_get($capturePayload, 'purchase_units.0.payments.captures.0.id', $orderId);
         $this->finalizeSuccessfulPayment($user, $captureId, $capturePayload);
 
-        return redirect()->route('otp.verify.form')->with('success', 'Payment successful. Enter OTP sent to your email.');
+        return redirect()->route('otp.verify.form')->with('success', 'Payment successful! OTP sent to your email.');
     }
 
     public function cancel(): RedirectResponse
     {
-        return redirect()->route('billing')->with('error', 'Payment cancelled. Complete payment to continue.');
+        return redirect()->route('payment')->with('error', 'Payment cancelled. Complete payment to continue.');
     }
 
     public function webhook(Request $request): Response
@@ -129,8 +155,7 @@ class PaymentController extends Controller
             return response('invalid signature', Response::HTTP_UNAUTHORIZED);
         }
 
-        $eventType = (string) $request->input('event_type');
-        if ($eventType !== 'PAYMENT.CAPTURE.COMPLETED') {
+        if ((string) $request->input('event_type') !== 'PAYMENT.CAPTURE.COMPLETED') {
             return response('ignored', Response::HTTP_OK);
         }
 
@@ -139,10 +164,6 @@ class PaymentController extends Controller
 
         if ($captureId === '' || $orderId === '') {
             return response('invalid payload', Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if (Payment::where('payment_id', $captureId)->where('status', 'completed')->exists()) {
-            return response('duplicate', Response::HTTP_OK);
         }
 
         $order = $this->fetchOrder($orderId);
@@ -167,21 +188,26 @@ class PaymentController extends Controller
         return $this->webhook($request);
     }
 
-    public function showOtpForm(Request $request)
+    public function showOtpForm(Request $request): View|RedirectResponse
     {
         $user = $request->user();
 
-        if (! $user->hasPaid()) {
+        if (! $user->is_paid) {
             return redirect()->route('payment')->with('error', 'Complete payment first.');
         }
 
-        if ($user->otp_verified_at) {
-            return redirect()->route('dashboard');
+        if ($user->is_verified) {
+            return redirect()->route('billing');
         }
 
-        return response()->view('billing.verify-otp', [
+        $otp = $user->otpCodes()
+            ->whereNull('consumed_at')
+            ->latest('id')
+            ->first();
+
+        return view('billing.verify-otp', [
             'user' => $user,
-            'otpExpiresAt' => $user->otp_expires_at,
+            'otpExpiresAt' => $otp?->expires_at,
         ]);
     }
 
@@ -189,11 +215,12 @@ class PaymentController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->hasPaid()) {
+        if (! $user->is_paid) {
             return redirect()->route('payment')->with('error', 'Complete payment first.');
         }
 
-        if ($this->isOtpResendCoolingDown($user)) {
+        $lastOtp = $user->otpCodes()->latest('id')->first();
+        if ($lastOtp && now()->diffInSeconds($lastOtp->created_at) < self::OTP_RESEND_COOLDOWN_SECONDS) {
             return redirect()->route('otp.verify.form')->with('error', 'Please wait 60 seconds before requesting another OTP.');
         }
 
@@ -210,43 +237,47 @@ class PaymentController extends Controller
 
         $user = $request->user();
 
-        if (! $user->hasPaid()) {
+        if (! $user->is_paid) {
             return redirect()->route('payment')->with('error', 'Complete payment first.');
         }
 
-        if ($user->otp_locked_until && now()->lt($user->otp_locked_until)) {
-            return redirect()->route('otp.verify.form')->with('error', 'Too many failed attempts. Try again later.');
-        }
+        $otpRecord = $user->otpCodes()
+            ->whereNull('consumed_at')
+            ->latest('id')
+            ->first();
 
-        if (! $user->otp_code || $this->isOtpExpired($user)) {
+        if (! $otpRecord || now()->greaterThan($otpRecord->expires_at)) {
             return redirect()->route('otp.verify.form')->with('error', 'OTP expired. Please resend OTP.');
         }
 
-        if (! Hash::check((string) $request->string('otp'), (string) $user->otp_code)) {
-            $failed = (int) $user->otp_failed_attempts + 1;
-            $updates = ['otp_failed_attempts' => $failed];
-
-            if ($failed >= self::OTP_MAX_FAILED_ATTEMPTS) {
-                $updates['otp_locked_until'] = now()->addMinutes(self::OTP_LOCK_MINUTES);
-            }
-
-            $user->forceFill($updates)->save();
-
+        if (! Hash::check((string) $request->string('otp'), $otpRecord->otp_code)) {
             return redirect()->route('otp.verify.form')->with('error', 'Invalid OTP.');
         }
 
-        $user->forceFill([
-            'otp_verified_at' => now(),
-            'otp_code' => null,
-            'otp_expires_at' => null,
-            'otp_failed_attempts' => 0,
-            'otp_locked_until' => null,
-            'onboarding_step' => 'active',
-        ])->save();
+        DB::transaction(function () use ($user, $otpRecord): void {
+            $otpRecord->update(['consumed_at' => now()]);
 
-        $request->session()->put('onboarding_step', 'active');
+            $user->forceFill([
+                'is_verified' => true,
+                'otp_verified_at' => now(),
+                'onboarding_step' => 'active',
+            ])->save();
 
-        return redirect()->route('dashboard')->with('success', 'OTP verified. Welcome to InfiMal Pro.');
+            License::firstOrCreate(
+                ['user_id' => $user->id, 'status' => 'active'],
+                [
+                    'license_key' => License::generateLicenseKey(),
+                    'plan_type' => 'Premium',
+                    'price' => (float) self::PRICE,
+                    'duration_days' => 36500,
+                    'is_active' => true,
+                    'is_lifetime' => true,
+                    'expires_at' => null,
+                ]
+            );
+        });
+
+        return redirect()->route('billing')->with('success', 'OTP verified! Billing details are now available.');
     }
 
     private function finalizeSuccessfulPayment(User $user, string $paymentId, array $metadata = []): void
@@ -265,26 +296,31 @@ class PaymentController extends Controller
                 ]
             );
 
-            License::firstOrCreate(
-                ['user_id' => $user->id, 'status' => 'active'],
+            Invoice::updateOrCreate(
+                ['transaction_id' => $paymentId],
                 [
-                    'license_key' => License::generateLicenseKey(),
-                    'plan_type' => 'Premium',
-                    'price' => (float) self::PRICE,
-                    'duration_days' => 36500,
-                    'is_active' => true,
-                    'is_lifetime' => true,
-                    'expires_at' => null,
+                    'user_id' => $user->id,
+                    'invoice_id' => 'INV-'.strtoupper(uniqid()),
+                    'amount' => (float) self::PRICE,
+                    'currency' => self::CURRENCY,
+                    'status' => 'paid',
+                    'billing_details' => [
+                        'plan' => self::PRODUCT,
+                    ],
+                    'payment_method' => 'paypal',
+                    'paid_at' => now(),
                 ]
             );
 
             $user->forceFill([
+                'payment_id' => $paymentId,
+                'transaction_id' => $paymentId,
                 'payment_status' => 'paid',
                 'is_paid' => true,
+                'is_verified' => false,
                 'paid_at' => now(),
                 'payment_date' => now(),
                 'payment_amount' => (float) self::PRICE,
-                'transaction_id' => $paymentId,
                 'onboarding_step' => 'otp_verification_required',
             ])->save();
 
@@ -294,32 +330,21 @@ class PaymentController extends Controller
 
     private function issueOtp(User $user, bool $force = false): void
     {
-        if (! $force && $user->otp_code && $user->otp_expires_at && now()->lt($user->otp_expires_at)) {
+        $current = $user->otpCodes()->whereNull('consumed_at')->latest('id')->first();
+
+        if (! $force && $current && now()->lt($current->expires_at)) {
             return;
         }
 
         $otp = (string) random_int(100000, 999999);
 
-        $user->forceFill([
+        OtpCode::create([
+            'user_id' => $user->id,
             'otp_code' => Hash::make($otp),
-            'otp_expires_at' => now()->addMinutes(self::OTP_TTL_MINUTES),
-            'otp_verified_at' => null,
-            'otp_failed_attempts' => 0,
-            'otp_locked_until' => null,
-            'otp_last_sent_at' => now(),
-        ])->save();
+            'expires_at' => now()->addMinutes(self::OTP_TTL_MINUTES),
+        ]);
 
         SendOtpMailJob::dispatch($user->id, $otp)->onQueue('emails');
-    }
-
-    private function isOtpExpired(User $user): bool
-    {
-        return ! $user->otp_expires_at || now()->greaterThan($user->otp_expires_at);
-    }
-
-    private function isOtpResendCoolingDown(User $user): bool
-    {
-        return $user->otp_last_sent_at && now()->diffInSeconds($user->otp_last_sent_at) < self::OTP_RESEND_COOLDOWN_SECONDS;
     }
 
     private function fetchOrder(string $orderId): array

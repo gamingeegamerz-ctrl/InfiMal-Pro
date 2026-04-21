@@ -3,17 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
 
 class GoogleAuthController extends Controller
 {
-    public function redirect()
+    public function redirect(): RedirectResponse
     {
         return Socialite::driver('google')
             ->scopes(['openid', 'email', 'profile'])
@@ -26,150 +24,65 @@ class GoogleAuthController extends Controller
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
 
-            $user = User::firstOrCreate(
-                ['email' => $googleUser->getEmail()],
-                [
+            $user = User::where('email', $googleUser->getEmail())->first();
+
+            if (! $user) {
+                $user = User::create([
                     'name' => $googleUser->getName() ?: 'Google User',
+                    'email' => $googleUser->getEmail(),
                     'google_id' => $googleUser->getId(),
                     'password' => Hash::make(bin2hex(random_bytes(32))),
-                    'google_password_set' => false,
                     'payment_status' => 'unpaid',
                     'is_paid' => false,
-                    'license_status' => 'inactive',
-                    'campaign_count' => 0,
-                    'email_sent' => 0,
-                    'onboarding_step' => 'google_setup_required',
-                    'onboarding_step' => 'google_profile_required',
-                    'accepted_terms_at' => null,
-                ]
-            );
+                    'is_verified' => false,
+                    'onboarding_step' => 'payment_required',
+                ]);
+            } else {
+                $user->forceFill([
+                    'google_id' => $googleUser->getId(),
+                ])->save();
+            }
 
-            $requiresGoogleOnboarding = ! $user->accepted_terms_at || $user->onboarding_step === 'google_profile_required';
-
-            $user->forceFill([
-                'google_id' => $googleUser->getId(),
-                'last_login_at' => now(),
-                'onboarding_step' => $requiresGoogleOnboarding ? 'google_profile_required' : ($user->onboarding_step ?: 'payment_required'),
-            'onboarding_step' => 'payment_required',
-                    'accepted_terms_at' => now(),
-                ]
-            );
-
-            $user->forceFill([
-                'google_id' => $googleUser->getId(),
-                'last_login_at' => now(),
-            ])->save();
+            $user->forceFill(['last_login_at' => now()])->save();
 
             Auth::login($user, true);
 
-            if ($requiresGoogleOnboarding) {
-                return redirect()->route('google.onboarding.form');
-            }
-
-            if (! $user->hasPaid()) {
-                return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
-            }
-
-            }
-
-            if (! $user->hasPaid()) {
-                return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
-            }
-
-            if (! $user->google_password_set || ! $user->accepted_terms_at) {
-                return redirect()->route('google.complete.prompt');
-            if ($requiresGoogleOnboarding) {
-                return redirect()->route('google.onboarding.form');
-            }
-
-            if (! $user->hasPaid()) {
-                return redirect()->route('payment')->with('info', 'Complete payment to continue setup.');
-            }
-
-            if (! $user->otp_verified_at) {
-                return redirect()->route('otp.verify.form');
-            }
-
-            return redirect()->route('dashboard');
+            return $this->redirectAfterAuthentication($user);
         } catch (\Throwable) {
             return redirect()->route('login')->with('error', 'Google login failed.');
         }
     }
 
-    public function setupPrompt(Request $request): JsonResponse|RedirectResponse
+    protected function redirectAfterAuthentication(User $user): RedirectResponse
     {
-        $user = $request->user();
-        abort_unless($user, 401);
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'requires_password_setup' => ! $user->google_password_set,
-                'requires_terms_acceptance' => ! (bool) $user->accepted_terms_at,
-            ]);
+        if ($user->is_paid && $user->is_verified) {
+            return redirect()->intended(route('dashboard'));
         }
 
-        return redirect()->route('register')->with('info', 'Complete Google signup: set password and accept terms.');
+        if (! $user->is_paid) {
+            return redirect()->route('payment');
+        }
+
+        return redirect()->route('otp.verify.form');
+    }
+
+    public function onboardingForm(Request $request): RedirectResponse
+    {
+        return redirect()->route('payment');
+    }
+
+    public function completeOnboarding(Request $request): RedirectResponse
+    {
+        return redirect()->route('payment');
+    }
+
+    public function setupPrompt(Request $request): RedirectResponse
+    {
+        return redirect()->route('payment');
     }
 
     public function completeSetup(Request $request): RedirectResponse
     {
-        $user = $request->user();
-
-        $validated = $request->validate([
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'accept_terms' => ['required', 'accepted'],
-        ]);
-
-        $user->forceFill([
-            'password' => Hash::make($validated['password']),
-            'google_password_set' => true,
-    public function onboardingForm(Request $request): JsonResponse|RedirectResponse
-    {
-        $user = $request->user();
-
-        if (! $user) {
-            return redirect()->route('login');
-        }
-
-        if ($user->onboarding_step !== 'google_profile_required') {
-            return redirect()->route('payment');
-        }
-
-        return response()->json([
-            'message' => 'Complete Google signup with password and terms acceptance.',
-            'required_fields' => ['name', 'password', 'password_confirmation', 'terms_accepted'],
-            'next' => route('google.onboarding.complete'),
-        ]);
-    }
-
-    public function completeOnboarding(Request $request): JsonResponse|RedirectResponse
-    {
-        $user = $request->user();
-        abort_unless($user, 401);
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'terms_accepted' => ['required', 'accepted'],
-        ]);
-
-        $user->forceFill([
-            'name' => $validated['name'],
-            'password' => Hash::make($validated['password']),
-            'accepted_terms_at' => now(),
-            'onboarding_step' => 'payment_required',
-        ])->save();
-
-        return redirect()->route('payment')->with('success', 'Google signup completed. Continue to payment.');
-        $request->session()->put('onboarding_step', 'payment_required');
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'redirect' => route('payment'),
-            ]);
-        }
-
-        return redirect()->route('payment')->with('success', 'Profile completed. Proceed to payment.');
+        return redirect()->route('payment');
     }
 }
