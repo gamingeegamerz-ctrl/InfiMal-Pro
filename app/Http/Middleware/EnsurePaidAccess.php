@@ -20,6 +20,9 @@ class EnsurePaidAccess
             return $next($request);
         }
 
+        if (! $user->is_paid || ! $user->is_verified) {
+            return redirect()->route('payment')
+                ->with('error', 'Please complete payment and OTP verification to continue.');
         $allowedRoutes = [
             'billing',
             'payment.success',

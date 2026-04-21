@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Invoice;
 use App\Models\License;
 use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
@@ -14,6 +15,12 @@ class BillingController extends Controller
     {
         $user = Auth::user();
 
+        if (! $user->is_paid) {
+            return redirect()->route('payment')->with('error', 'Complete payment first.');
+        }
+
+        if (! $user->is_verified) {
+            return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to continue.');
         if ($user->hasPaidAccess()) {
             return redirect()->route('dashboard')->with('success', 'You already have active access.');
         }
@@ -24,13 +31,17 @@ class BillingController extends Controller
 
         $license = License::where('user_id', $user->id)->latest()->first();
         $payments = Payment::where('user_id', $user->id)->latest()->get();
+        $invoice = Invoice::where('user_id', $user->id)->latest()->first();
 
         return view('billing.index', [
             'user' => $user,
             'license' => $license,
             'payments' => $payments,
+            'invoice' => $invoice,
+            'transaction_id' => $user->transaction_id,
+            'payment_date' => optional($user->paid_at)->toDateString(),
+            'price' => $user->payment_amount ?? 299.00,
             'planName' => 'InfiMal Pro',
-            'price' => 299.00,
             'paypalClientId' => config('services.paypal.client_id'),
             'paypalMode' => config('services.paypal.mode', 'sandbox'),
             'features' => [

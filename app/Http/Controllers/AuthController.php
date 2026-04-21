@@ -111,6 +111,18 @@ class AuthController extends Controller
     }
     protected function authenticated(Request $request, User $user): RedirectResponse
     {
+        if ($user->is_paid && $user->is_verified) {
+            return redirect()->intended(route('dashboard'));
+        }
+
+        if (! $user->is_paid) {
+            return redirect()->route('payment');
+        }
+
+        return redirect()->route('otp.verify.form');
+    }
+
+
         if ($user->hasPaidAccess()) {
             return redirect()->route('dashboard');
         }

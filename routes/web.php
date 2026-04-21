@@ -62,6 +62,12 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('/payment', [PaymentController::class, 'showPaymentPage'])->name('payment');
+    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
+    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
+
 Route::get('/payment', function () {
     if (! auth()->check()) {
         return redirect()->route('login');
@@ -93,9 +99,8 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
         ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
-    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
+
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')

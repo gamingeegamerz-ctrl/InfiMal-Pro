@@ -22,6 +22,7 @@ class User extends Authenticatable
         'google_password_set',
         'payment_status',
         'is_paid',
+        'is_verified',
         'paid_at',
         'license_key',
         'license_status',
@@ -34,6 +35,7 @@ class User extends Authenticatable
         'payment_date',
         'payment_amount',
         'transaction_id',
+        'payment_id',
         'license_expires_at',
         'is_admin',
         'otp_code',
@@ -68,6 +70,7 @@ class User extends Authenticatable
         'otp_locked_until' => 'datetime',
         'otp_last_sent_at' => 'datetime',
         'is_paid' => 'boolean',
+        'is_verified' => 'boolean',
         'is_admin' => 'boolean',
         'google_password_set' => 'boolean',
         'otp_failed_attempts' => 'integer',
@@ -116,6 +119,16 @@ class User extends Authenticatable
         return $this->hasMany(Payment::class, 'user_id');
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class, 'user_id');
+    }
+
+    public function otpCodes(): HasMany
+    {
+        return $this->hasMany(OtpCode::class, 'user_id');
+    }
+
     public function licenses(): HasMany
     {
         return $this->hasMany(License::class, 'user_id');
@@ -142,7 +155,7 @@ class User extends Authenticatable
             return 'REGISTERED_NOT_PAID';
         }
 
-        if (! $this->otp_verified_at) {
+        if (! $this->is_verified) {
             return 'PAID_NOT_VERIFIED';
         }
 
@@ -204,6 +217,7 @@ class User extends Authenticatable
             return true;
         }
 
+        return (bool) ($this->is_paid && $this->is_verified);
         return $this->hasPaid()
             && $this->hasActiveLicense()
             && ! is_null($this->otp_verified_at);
@@ -211,4 +225,5 @@ class User extends Authenticatable
 
 
 }
+
 
