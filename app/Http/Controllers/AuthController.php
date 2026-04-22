@@ -40,21 +40,14 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
+        /** @var User $user */
         $user = $request->user();
 
         $user->forceFill(['last_login_at' => now()])->save();
 
         Log::channel('security')->info('Login succeeded', ['user_id' => $user->id, 'ip' => $request->ip()]);
 
-        if (! $user->hasPaid()) {
-            return redirect()->route('payment');
-        }
-
-        if (! $user->otp_verified_at) {
-            return redirect()->route('otp.verify.form');
-        }
-
-        return redirect()->route('dashboard');
+        return $this->authenticated($request, $user);
     }
 
     public function register(Request $request): RedirectResponse
@@ -71,6 +64,7 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'payment_status' => 'unpaid',
             'is_paid' => false,
+            'is_verified' => false,
             'plan_name' => 'InfiMal Pro',
             'license_status' => 'inactive',
             'campaign_count' => 0,
@@ -116,5 +110,18 @@ class AuthController extends Controller
         return redirect()
             ->route('login')
             ->with('success', 'Logged out successfully!');
+    }
+
+    protected function authenticated(Request $request, User $user): RedirectResponse
+    {
+        if ($user->is_paid && $user->is_verified) {
+            return redirect()->intended(route('dashboard'));
+        }
+
+        if (! $user->is_paid) {
+            return redirect()->route('payment');
+        }
+
+        return redirect()->route('otp.verify.form');
     }
 }
