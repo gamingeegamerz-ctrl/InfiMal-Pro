@@ -63,6 +63,7 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'payment_status' => 'unpaid',
             'is_paid' => false,
+            'is_verified' => false,
             'plan_name' => 'InfiMal Pro',
             'license_status' => 'inactive',
             'campaign_count' => 0,
@@ -112,26 +113,13 @@ class AuthController extends Controller
     protected function authenticated(Request $request, User $user): RedirectResponse
     {
         if ($user->is_paid && $user->is_verified) {
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended('/dashboard');
         }
 
         if (! $user->is_paid) {
-            return redirect()->route('payment');
+            return redirect('/payment');
         }
 
-        return redirect()->route('otp.verify.form');
+        return redirect('/verify-otp');
     }
-
-
-        if ($user->hasPaidAccess()) {
-            return redirect()->route('dashboard');
-        }
-
-        if ($user->hasPaid() && ! $user->otp_verified_at) {
-            return redirect()->route('otp.verify.form');
-        }
-
-        return redirect()->route('billing');
-    }
-
 }

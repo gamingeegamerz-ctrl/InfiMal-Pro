@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Http;
+namespace App\Http;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
@@ -69,6 +69,8 @@ class Kernel extends HttpKernel
         // =================== INFIMAL CUSTOM MIDDLEWARE ===================
         // ? ADMIN MIDDLEWARE 
         'admin' => \App\Http\Middleware\IsAdmin::class,
+        'flow.state' => \App\Http\Middleware\EnforceOnboardingState::class,
+        'paid.access' => \App\Http\Middleware\EnsurePaidAccess::class,
         
         // Other middleware (comment out if not created yet)
         // 'license' => \App\Http\Middleware\CheckLicense::class,
