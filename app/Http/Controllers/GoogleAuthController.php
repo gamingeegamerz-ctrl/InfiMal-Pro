@@ -56,14 +56,14 @@ class GoogleAuthController extends Controller
     protected function redirectAfterAuthentication(User $user): RedirectResponse
     {
         if ($user->is_paid && $user->is_verified) {
-            return redirect()->intended(route('dashboard'));
+            return redirect()->intended('/dashboard');
         }
 
         if (! $user->is_paid) {
-            return redirect()->route('payment');
+            return redirect('/payment');
         }
 
-        return redirect()->route('otp.verify.form');
+        return redirect('/verify-otp');
     }
 
     public function onboardingForm(Request $request): RedirectResponse

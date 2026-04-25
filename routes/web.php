@@ -67,24 +67,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
     Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
     Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
-
-Route::get('/payment', function () {
-    if (! auth()->check()) {
-        return redirect()->route('login');
-    }
-
-    $user = auth()->user();
-
-    if ($user->hasPaidAccess()) {
-        return redirect()->route('dashboard')->with('success', 'You already have active access.');
-    }
-
-    if ($user->hasPaid() && ! $user->otp_verified_at) {
-        return redirect()->route('otp.verify.form')->with('error', 'Please verify OTP to complete activation.');
-    }
-
-    return redirect()->route('billing');
-})->name('payment');
+});
 
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
@@ -99,8 +82,6 @@ Route::middleware(['auth', 'flow.state'])->group(function (): void {
         ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-
-    Route::get('/billing', [BillingController::class, 'index'])->name('billing');
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')
