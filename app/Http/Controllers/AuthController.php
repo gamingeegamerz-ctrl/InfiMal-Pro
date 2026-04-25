@@ -113,13 +113,13 @@ class AuthController extends Controller
     protected function authenticated(Request $request, User $user): RedirectResponse
     {
         if ($user->is_paid && $user->is_verified) {
-            return redirect()->intended('/dashboard');
+            return redirect()->intended(route('dashboard'));
         }
 
         if (! $user->is_paid) {
-            return redirect('/payment');
+            return redirect()->route('payment');
         }
 
-        return redirect('/verify-otp');
+        return redirect()->route('otp.verify.form');
     }
 }

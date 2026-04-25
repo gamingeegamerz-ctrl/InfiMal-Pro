@@ -35,14 +35,9 @@ class EnsurePaidAccess
             return $next($request);
         }
 
-        if (! $user->is_paid) {
+        if (! $user->is_paid || ! $user->is_verified) {
             return redirect()->route('payment')
-                ->with('error', 'Please complete payment to continue.');
-        }
-
-        if ($user->is_paid && ! $user->is_verified) {
-            return redirect()->route('otp.verify.form')
-                ->with('error', 'Please verify OTP to continue.');
+                ->with('error', 'Complete payment and verification to continue.');
         }
 
         return $next($request);
