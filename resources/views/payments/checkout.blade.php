@@ -174,11 +174,12 @@
                             </div>
                             
                             <!-- PayPal Button -->
-                            <button id="payBtn" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-5 rounded-xl text-lg transition-all duration-200 hover-glow hover:shadow-xl mb-4">
-                                Pay $299 with PayPal
-                            </button>
-                            
-                            <div id="paypal-container" style="display:none;"></div>
+                            <form method="POST" action="{{ route('billing.checkout') }}">
+                                @csrf
+                                <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-5 rounded-xl text-lg transition-all duration-200 hover-glow hover:shadow-xl mb-4">
+                                    Pay $299 with PayPal
+                                </button>
+                            </form>
                             
                             <p class="text-center text-sm text-gray-500">
                                 🔒 256-bit SSL Encryption • 30-Day Money Back Guarantee
@@ -274,9 +275,6 @@
         </div>
     </footer>
 
-    <!-- PayPal SDK -->
-    <script src="https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID&currency=USD"></script>
-
     <script>
         // Fade in animation
         const fadeElements = document.querySelectorAll('.fade-in');
@@ -288,56 +286,6 @@
             });
         }, { threshold: 0.1 });
         fadeElements.forEach(el => fadeInObserver.observe(el));
-
-        // PayPal Integration
-        document.getElementById('payBtn').addEventListener('click', function () {
-            document.getElementById('paypal-container').style.display = 'block';
-            this.style.display = 'none';
-
-            paypal.Buttons({
-                style: {
-                    shape: 'rect',
-                    color: 'blue',
-                    layout: 'vertical',
-                    label: 'pay',
-                    height: 50
-                },
-
-                createOrder: function(data, actions) {
-                    return actions.order.create({
-                        purchase_units: [{
-                            amount: {
-                                value: '299.00'
-                            },
-                            description: 'InfiMal Agency Lifetime Plan'
-                        }]
-                    });
-                },
-
-                onApprove: function(data, actions) {
-                    return actions.order.capture().then(function(details) {
-                        // Success message
-                        alert('Transaction completed by ' + details.payer.name.given_name);
-                        
-                        // Redirect to dashboard
-                        window.location.href = '/dashboard?payment=success';
-                    });
-                },
-
-                onCancel: function(data) {
-                    document.getElementById('paypal-container').style.display = 'none';
-                    document.getElementById('payBtn').style.display = 'block';
-                    alert('Payment cancelled');
-                },
-
-                onError: function(err) {
-                    document.getElementById('paypal-container').style.display = 'none';
-                    document.getElementById('payBtn').style.display = 'block';
-                    alert('An error occurred: ' + err);
-                }
-
-            }).render('#paypal-container');
-        });
 
         // Mobile menu links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {

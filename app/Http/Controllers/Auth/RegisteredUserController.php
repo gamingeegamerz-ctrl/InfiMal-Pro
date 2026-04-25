@@ -39,12 +39,16 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'payment_status' => 'unpaid',
+            'is_paid' => false,
+            'is_verified' => false,
+            'onboarding_step' => 'payment_required',
         ]);
 
         event(new Registered($user));
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect()->route('payment');
     }
 }
