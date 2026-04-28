@@ -38,7 +38,7 @@ class PaymentController extends Controller
             return redirect()->route('otp.verify.form')->with('info', 'Payment done. Please verify OTP.');
         }
 
-        return view('billing.index', [
+        return view('payments.checkout', [
             'user' => $user,
             'planName' => 'InfiMal Pro',
             'price' => (float) self::PRICE,

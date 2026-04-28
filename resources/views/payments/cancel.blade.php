@@ -24,7 +24,7 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">Payment Cancelled</h1>
         <p class="text-gray-600 mb-6">Your payment was cancelled. No charges were made to your account.</p>
         <div class="space-y-3">
-            <a href="/payment/checkout" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 block text-center">
+            <a href="/payment" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 block text-center">
                 Try Again
             </a>
             <a href="/" class="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-50 transition duration-200 block text-center">

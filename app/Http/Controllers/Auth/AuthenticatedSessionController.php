@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,7 +29,18 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->is_paid && $user->is_verified) {
+            return redirect()->intended('/dashboard');
+        }
+
+        if (! $user->is_paid) {
+            return redirect('/payment');
+        }
+
+        return redirect('/verify-otp');
     }
 
     /**
