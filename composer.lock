@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ab5771e29841bf8e03889e67521476f2",
+    "content-hash": "cc101114ba2b4084a81d681676b44602",
     "packages": [
         {
             "name": "brick/math",
@@ -3163,6 +3163,103 @@
             "time": "2020-10-15T08:29:30+00:00"
         },
         {
+            "name": "paypal/paypal-checkout-sdk",
+            "version": "1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/paypal/Checkout-PHP-SDK.git",
+                "reference": "19992ce7051ff9e47e643f28abb8cc1b3e5f1812"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/paypal/Checkout-PHP-SDK/zipball/19992ce7051ff9e47e643f28abb8cc1b3e5f1812",
+                "reference": "19992ce7051ff9e47e643f28abb8cc1b3e5f1812",
+                "shasum": ""
+            },
+            "require": {
+                "paypal/paypalhttp": "1.0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^5.7"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Sample\\": "samples/",
+                    "PayPalCheckoutSdk\\": "lib/PayPalCheckoutSdk"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "https://github.com/paypal/Checkout-PHP-SDK/blob/master/LICENSE"
+            ],
+            "authors": [
+                {
+                    "name": "PayPal",
+                    "homepage": "https://github.com/paypal/Checkout-PHP-SDK/contributors"
+                }
+            ],
+            "description": "PayPal's PHP SDK for Checkout REST APIs",
+            "homepage": "http://github.com/paypal/Checkout-PHP-SDK/",
+            "keywords": [
+                "checkout",
+                "orders",
+                "payments",
+                "paypal",
+                "rest",
+                "sdk"
+            ],
+            "support": {
+                "source": "https://github.com/paypal/Checkout-PHP-SDK/tree/1.0.2"
+            },
+            "abandoned": "paypal/paypal-server-sdk",
+            "time": "2021-09-21T20:57:38+00:00"
+        },
+        {
+            "name": "paypal/paypalhttp",
+            "version": "1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/paypal/paypalhttp_php.git",
+                "reference": "7b09c89c80828e842c79230e7f156b61fbb68d25"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/paypal/paypalhttp_php/zipball/7b09c89c80828e842c79230e7f156b61fbb68d25",
+                "reference": "7b09c89c80828e842c79230e7f156b61fbb68d25",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^5.7",
+                "wiremock-php/wiremock-php": "1.43.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "PayPalHttp\\": "lib/PayPalHttp"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "PayPal",
+                    "homepage": "https://github.com/paypal/paypalhttp_php/contributors"
+                }
+            ],
+            "support": {
+                "issues": "https://github.com/paypal/paypalhttp_php/issues",
+                "source": "https://github.com/paypal/paypalhttp_php/tree/1.0.1"
+            },
+            "abandoned": true,
+            "time": "2021-09-14T21:35:26+00:00"
+        },
+        {
             "name": "phpoption/phpoption",
             "version": "1.9.4",
             "source": {
@@ -4035,6 +4132,132 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.1"
             },
             "time": "2025-09-04T20:59:21+00:00"
+        },
+        {
+            "name": "resend/resend-laravel",
+            "version": "v1.3.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/resend/resend-laravel.git",
+                "reference": "49773f31e9e7753f596f8459b6a8200525ffde0c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/resend/resend-laravel/zipball/49773f31e9e7753f596f8459b6a8200525ffde0c",
+                "reference": "49773f31e9e7753f596f8459b6a8200525ffde0c",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.1",
+                "resend/resend-php": "^1.0.0",
+                "symfony/mailer": "^6.2|^7.0|^8.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.14",
+                "mockery/mockery": "^1.5",
+                "orchestra/testbench": "^8.17|^9.0|^10.8|^11.0",
+                "pestphp/pest": "^1.0|^2.0|^3.7|^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Resend\\Laravel\\ResendServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Resend\\Laravel\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Resend and contributors",
+                    "homepage": "https://github.com/resend/resend-laravel/contributors"
+                }
+            ],
+            "description": "Resend for Laravel",
+            "homepage": "https://resend.com/",
+            "keywords": [
+                "api",
+                "client",
+                "laravel",
+                "php",
+                "resend",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/resend/resend-laravel/issues",
+                "source": "https://github.com/resend/resend-laravel/tree/v1.3.2"
+            },
+            "time": "2026-03-27T02:11:50+00:00"
+        },
+        {
+            "name": "resend/resend-php",
+            "version": "v1.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/resend/resend-php.git",
+                "reference": "87d29d98271a0ab1c09cdbee102daa2f9b3419db"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/resend/resend-php/zipball/87d29d98271a0ab1c09cdbee102daa2f9b3419db",
+                "reference": "87d29d98271a0ab1c09cdbee102daa2f9b3419db",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.5",
+                "php": "^8.1.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.13",
+                "mockery/mockery": "^1.6",
+                "pestphp/pest": "^1.0|^2.0|^3.0|^4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/Resend.php"
+                ],
+                "psr-4": {
+                    "Resend\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Resend and contributors",
+                    "homepage": "https://github.com/resend/resend-php/contributors"
+                }
+            ],
+            "description": "Resend PHP library.",
+            "homepage": "https://resend.com/",
+            "keywords": [
+                "api",
+                "client",
+                "php",
+                "resend",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/resend/resend-php/issues",
+                "source": "https://github.com/resend/resend-php/tree/v1.3.0"
+            },
+            "time": "2026-04-11T10:48:32+00:00"
         },
         {
             "name": "symfony/clock",

@@ -123,12 +123,7 @@ class SmtpService
             return ['success' => true, 'message' => 'SMTP test email sent successfully to rotated probe inbox.'];
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => $this->sanitizeError($e->getMessage(), $smtp)];
-            return ['success' => false, 'message' => $e->getMessage()];
-        Mail::raw('SMTP connection test from InfiMal.', function ($message) use ($toEmail) {
-            $message->to($toEmail)->subject('InfiMal SMTP Test');
-        });
-
-        return ['success' => true, 'message' => 'SMTP validated and test email sent.', 'status' => $result['status']];
+        }
     }
 
     public function validateSmtpConnection(string $host, int $port, int $timeoutSeconds = 5): array
@@ -169,22 +164,5 @@ class SmtpService
         $masked = str_replace([(string) $smtp->username, (string) $smtp->password], ['[masked-user]', '[masked-pass]'], $message);
 
         return substr($masked, 0, 300);
-    }
-
-    private function rotateProbeInbox(SMTPAccount $smtp, string $fallback): string
-    {
-        $pool = array_values(array_unique(array_filter([
-            $fallback,
-            config('mail.from.address'),
-            'deliverability-check+1@infimal.local',
-            'deliverability-check+2@infimal.local',
-        ])));
-
-        $indexKey = 'smtp_probe_inbox_index_'.$smtp->id;
-        $index = (int) Cache::get($indexKey, 0);
-        $target = $pool[$index % count($pool)] ?? $fallback;
-        Cache::put($indexKey, ($index + 1) % max(1, count($pool)), now()->addDay());
-
-        return $target;
     }
 }

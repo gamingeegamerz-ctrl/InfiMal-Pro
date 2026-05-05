@@ -309,10 +309,17 @@
                                 <span class="material-symbols-outlined align-middle mr-2 text-sm">download</span>
                                 Invoice
                             </button>
-                            <button onclick="upgradePlan()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-semibold text-sm hover-glow transition-all duration-300">
-                                <span class="material-symbols-outlined align-middle mr-2 text-sm">upgrade</span>
-                                Upgrade
-                            </button>
+                            @if(!Auth::user()->hasPaid())
+                                <button id="payWithPayPal" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg font-semibold text-sm hover-glow transition-all duration-300">
+                                    <span class="material-symbols-outlined align-middle mr-2 text-sm">payments</span>
+                                    Pay Now
+                                </button>
+                            @else
+                                <button onclick="upgradePlan()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-2 rounded-lg font-semibold text-sm hover-glow transition-all duration-300">
+                                    <span class="material-symbols-outlined align-middle mr-2 text-sm">upgrade</span>
+                                    Upgrade
+                                </button>
+                            @endif
                             <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
                                 {{ substr(Auth::user()->name, 0, 1) }}
                             </div>
@@ -721,62 +728,34 @@
     </script>
 </body>
 </html>
-<script src="https://www.paypal.com/sdk/js?client-id=sb&currency=USD"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var payBtn = document.getElementById('payWithPayPal');
     if (!payBtn) return;
-    var hiddenContainer = document.createElement('div');
-    hiddenContainer.style.display = 'none';
-    hiddenContainer.id = 'paypal-hidden-container';
-    document.body.appendChild(hiddenContainer);
-    let paypalRendered = false;
     payBtn.addEventListener('click', function(e) {
         e.preventDefault();
-        if (paypalRendered) return;
-        paypalRendered = true;
-        paypal.Buttons({
-            style: { layout: 'vertical' },
-            createOrder: function(data, actions) {
-                return fetch('/paypal/create-order', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify({})
-                })
-                .then(res => res.json())
-                .then(data => data.id);
+        showLoading(true);
+
+        fetch('{{ route('billing.checkout') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content'),
+                'Accept': 'application/json'
             },
-            onApprove: function(data, actions) {
-                return fetch('/paypal/capture-order/' + data.orderID, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    }
-                })
-                .then(res => res.json())
-                .then(details => {
-                    if(details.status === 'COMPLETED') {
-                        window.location.reload();
-                    } else {
-                        alert('Payment not completed.');
-                    }
-                });
-            },
-            onError: function(err) {
-                alert('PayPal error: ' + err);
+            body: JSON.stringify({})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.approval_url) {
+                throw new Error('Unable to start PayPal checkout');
             }
-        }).render('#paypal-hidden-container');
-        // Programmatically click the hidden PayPal button
-        setTimeout(function() {
-            var btn = hiddenContainer.querySelector('iframe');
-            if(btn) {
-                btn.contentWindow.focus();
-            }
-        }, 500);
+            window.location.href = data.approval_url;
+        })
+        .catch(() => {
+            showLoading(false);
+            showToast('❌ Payment checkout failed. Please try again.', 'error');
+        });
     });
 });
 </script>

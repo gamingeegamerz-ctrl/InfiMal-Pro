@@ -6,6 +6,7 @@ use App\Models\Campaign;
 use App\Models\EmailJob;
 use App\Models\MailingList;
 use App\Models\Subscriber;
+use App\Jobs\SendCampaignEmailJob;
 use App\Models\SMTPAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -202,7 +203,7 @@ class CampaignController extends Controller
 
         $jobs = collect();
         foreach ($subscribers as $subscriber) {
-            $jobs->push(EmailJob::create([
+            $job = EmailJob::create([
                 'user_id' => Auth::id(),
                 'campaign_id' => $campaign->id,
                 'subscriber_id' => $subscriber->id,
@@ -215,7 +216,6 @@ class CampaignController extends Controller
                 'from_name' => $campaign->from_name,
                 'reply_to' => $campaign->reply_to,
                 'status' => 'queued',
-            ]));
                 'idempotency_key' => hash('sha256', implode('|', [
                     $campaign->id,
                     strtolower((string) $subscriber->email),
@@ -224,6 +224,7 @@ class CampaignController extends Controller
             ]);
 
             SendCampaignEmailJob::dispatch($job->id)->onQueue(config('infimal.queue.user_email_queue', 'user_email_jobs'));
+            $jobs->push($job);
         }
 
         $scheduler->scheduleCampaignJobs($jobs, $smtp);

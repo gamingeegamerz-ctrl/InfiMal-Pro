@@ -31,8 +31,8 @@
         @endif
         
         <div class="space-y-3">
-            <a href="/dashboard" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 block text-center">
-                Go to Dashboard
+            <a href="/verify-otp" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-200 block text-center">
+                Verify OTP
             </a>
             <a href="/" class="w-full border border-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-50 transition duration-200 block text-center">
                 Return Home

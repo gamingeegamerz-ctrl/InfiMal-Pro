@@ -16,127 +16,14 @@ use App\Http\Controllers\SubscriberController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
+use App\Http\Controllers\OtpVerificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
-
-$blogPosts = [
-    'best-email-marketing-tools' => [
-        'slug' => 'best-email-marketing-tools',
-        'title' => 'Best Email Marketing Tools for Growth Teams',
-        'excerpt' => 'How to evaluate an email marketing tool by deliverability, automation, and scale.',
-        'date' => 'April 13, 2026',
-        'sections' => [
-            ['heading' => 'How to choose the right email marketing SaaS', 'paragraphs' => ['Choose a platform that supports segmentation, sender authentication, and clear analytics.', 'A modern email campaign platform should support both promotional and lifecycle automation.']],
-            ['heading' => 'Where INFIMAL fits', 'paragraphs' => ['INFIMAL combines SMTP email sending with campaign automation software and reputation-aware sending controls.']],
-        ],
-    ],
-    'how-to-send-bulk-emails-safely' => [
-        'slug' => 'how-to-send-bulk-emails-safely',
-        'title' => 'How to Send Bulk Emails Safely',
-        'excerpt' => 'Practical bulk email sender safeguards to protect deliverability.',
-        'date' => 'April 13, 2026',
-        'sections' => [
-            ['heading' => 'Warm up and authenticate your sender', 'paragraphs' => ['Use SPF, DKIM, and DMARC, then ramp volume gradually to build reputation.']],
-            ['heading' => 'Segment and throttle campaigns', 'paragraphs' => ['Send to engaged subscribers first and apply queue throttling to avoid spikes.']],
-        ],
-    ],
-    'smtp-vs-email-api' => [
-        'slug' => 'smtp-vs-email-api',
-        'title' => 'SMTP vs Email API: Which Sending Approach is Better?',
-        'excerpt' => 'Understand tradeoffs between SMTP email sending and API-based delivery.',
-        'date' => 'April 13, 2026',
-        'sections' => [
-            ['heading' => 'SMTP strengths', 'paragraphs' => ['SMTP is widely supported and easy to integrate with traditional systems.']],
-            ['heading' => 'API strengths', 'paragraphs' => ['Email APIs can provide richer event streaming and templating controls.']],
-        ],
-    ],
-    'avoid-spam-in-email-marketing' => [
-        'slug' => 'avoid-spam-in-email-marketing',
-        'title' => 'Avoid Spam in Email Marketing Campaigns',
-        'excerpt' => 'Tactics to keep campaigns out of spam folders.',
-        'date' => 'April 13, 2026',
-        'sections' => [
-            ['heading' => 'Content and list hygiene', 'paragraphs' => ['Avoid misleading subject lines and remove inactive contacts regularly.']],
-            ['heading' => 'Monitor engagement signals', 'paragraphs' => ['Track open, click, bounce, and complaint trends and react quickly.']],
-        ],
-    ],
-];
-
-Route::get('/', function () {
-    return view('marketing.home', [
-        'seo' => [
-            'title' => 'INFIMAL - Smart Email Marketing & Bulk Email Sending Platform',
-            'description' => 'INFIMAL is an intelligent email marketing platform with SMTP support, smart scheduling, automation, and high deliverability.',
-            'keywords' => 'email marketing tool, bulk email sender, SMTP email sending, email automation software, email campaign platform, send unlimited emails, email marketing SaaS',
-            'canonical' => url('/'),
-        ],
-        'schema' => [
-            ['@context' => 'https://schema.org', '@type' => 'Organization', 'name' => 'INFIMAL', 'url' => url('/')],
-            ['@context' => 'https://schema.org', '@type' => 'SoftwareApplication', 'name' => 'INFIMAL', 'applicationCategory' => 'BusinessApplication', 'operatingSystem' => 'Web', 'url' => url('/'), 'description' => 'Email marketing SaaS platform for bulk email sender and SMTP campaign automation.'],
-        ],
-    ]);
-})->name('home');
-
-Route::get('/pricing', fn () => view('marketing.pricing', ['seo' => [
-    'title' => 'INFIMAL Pricing - Email Campaign Platform Plans',
-    'description' => 'Explore INFIMAL pricing for email automation software, bulk email sender workflows, and SMTP email sending.',
-    'keywords' => 'email campaign platform pricing, email marketing SaaS pricing, bulk email sender plans',
-    'canonical' => url('/pricing'),
-]]))->name('pricing');
-
-Route::get('/features', fn () => view('marketing.features', ['seo' => [
-    'title' => 'INFIMAL Features - SMTP Email Sending & Automation Software',
-    'description' => 'Discover INFIMAL features for SMTP support, smart scheduling, automation, and high deliverability.',
-    'keywords' => 'SMTP email platform, email automation software, bulk email sender features',
-    'canonical' => url('/features'),
-]]))->name('features');
-
-Route::get('/blog', function () use ($blogPosts) {
-    return view('blog.index', ['posts' => array_values($blogPosts), 'seo' => [
-        'title' => 'INFIMAL Blog - Email Marketing Guides',
-        'description' => 'Read INFIMAL guides on email marketing tools, bulk email sender strategy, SMTP, and deliverability.',
-        'canonical' => url('/blog'),
-    ]]);
-})->name('blog.index');
-
-Route::get('/blog/{slug}', function (string $slug) use ($blogPosts) {
-    abort_unless(isset($blogPosts[$slug]), 404);
-    $post = $blogPosts[$slug];
-    return view('blog.show', ['post' => $post, 'seo' => [
-        'title' => 'INFIMAL Blog - ' . $post['title'],
-        'description' => $post['excerpt'],
-        'canonical' => url('/blog/' . $slug),
-    ]]);
-})->name('blog.show');
-
-Route::get('/sitemap.xml', function () use ($blogPosts) {
-    $urls = [
-        url('/'),
-        url('/features'),
-        url('/pricing'),
-        url('/blog'),
-        ...array_map(fn (array $post): string => url('/blog/' . $post['slug']), array_values($blogPosts)),
-    ];
-
-    return response()->view('marketing.sitemap', ['urls' => $urls])
-        ->header('Content-Type', 'application/xml');
-})->name('sitemap');
-
-Route::get('/robots.txt', function () {
-    $content = implode(PHP_EOL, [
-        'User-agent: *',
-        'Allow: /',
-        'Sitemap: ' . url('/sitemap.xml'),
-    ]);
-
-    return response($content, 200)->header('Content-Type', 'text/plain');
-})->name('robots');
-
-Route::redirect('/email-marketing-tool', '/features', 301);
-Route::redirect('/bulk-email-sender', '/features', 301);
-Route::redirect('/smtp-email-platform', '/features', 301);
-
+// =================== PUBLIC ROUTES ===================
+Route::view('/', 'public.index')->name('home');
+Route::view('/pricing', 'pricing')->name('pricing');
+Route::view('/features', 'features')->name('features');
 Route::view('/contact', 'contact')->name('contact');
 Route::view('/about', 'about')->name('about');
 Route::view('/privacy', 'privacy')->name('privacy');
@@ -153,7 +40,7 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/forgot-password', fn() => view('auth.forgot-password'))->name('password.request');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('password.email');
     Route::get('/reset-password/{token}', fn($token) => view('auth.reset-password', ['token' => $token]))->name('password.reset');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+    Route::match(['POST', 'PUT'], '/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
     Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('google.login');
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
 });
@@ -173,31 +60,26 @@ Route::post('/billing/webhook/paypal', [PaymentController::class, 'webhook'])->m
     ->name('billing.webhook.paypal')
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('/payment', [PaymentController::class, 'showPaymentPage'])->name('payment');
+    Route::get('/verify-otp', [OtpVerificationController::class, 'showForm'])->name('otp.verify.form');
+    Route::post('/verify-otp', [OtpVerificationController::class, 'verify'])->middleware('throttle:otp')->name('otp.verify.submit');
+    Route::post('/verify-otp/resend', [OtpVerificationController::class, 'resend'])->middleware('throttle:otp')->name('otp.verify.resend');
+});
+
 Route::middleware(['auth', 'flow.state'])->group(function (): void {
     Route::get('/billing', [BillingController::class, 'index'])->name('billing');
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
-
     Route::get('/google/onboarding', [GoogleAuthController::class, 'onboardingForm'])->name('google.onboarding.form');
     Route::post('/google/onboarding', [GoogleAuthController::class, 'completeOnboarding'])->name('google.onboarding.complete');
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'setupPrompt'])->name('google.complete.prompt');
     Route::post('/auth/google/complete', [GoogleAuthController::class, 'completeSetup'])->name('google.complete.submit');
-    Route::get('/payment', [BillingController::class, 'index'])->name('payment');
     Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])->middleware('throttle:payment')->name('billing.checkout');
-
-    Route::match(['GET', 'POST'], '/billing/checkout', [PaymentController::class, 'createOrder'])
-        ->middleware('throttle:payment')
-        ->name('billing.checkout');
     Route::get('/payment/success', [PaymentController::class, 'success'])->middleware('throttle:payment')->name('payment.success');
     Route::get('/payment/cancel', [PaymentController::class, 'cancel'])->name('payment.cancel');
-    Route::get('/verify-otp', [PaymentController::class, 'showOtpForm'])->name('otp.verify.form');
-    Route::post('/verify-otp', [PaymentController::class, 'verifyOtp'])->middleware('throttle:otp')->name('otp.verify.submit');
-    Route::post('/verify-otp/resend', [PaymentController::class, 'resendOtp'])->middleware('throttle:otp')->name('otp.verify.resend');
-
-    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
-        ->middleware('throttle:6,1')
-        ->name('verification.send');
+    Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])->middleware('throttle:6,1')->name('verification.send');
 });
 
+// =================== ROUTES THAT REQUIRE PAID ACCESS ===================
 Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -205,14 +87,6 @@ Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(
     Route::post('/campaigns/{campaign}/send', [CampaignController::class, 'send'])->name('campaigns.send');
     Route::get('/campaigns/{campaign}/preview', [CampaignController::class, 'preview'])->name('campaigns.preview');
     Route::get('/campaigns/{campaign}/analytics', [CampaignController::class, 'analytics'])->name('campaigns.analytics');
-
-    Route::get('/subscribers', [SubscriberController::class, 'index'])->name('subscribers.index');
-    Route::post('/subscribers', [SubscriberController::class, 'store'])->name('subscribers.store');
-    Route::post('/subscribers/import', [SubscriberController::class, 'import'])->name('subscribers.import');
-    Route::get('/subscribers/export', [SubscriberController::class, 'export'])->name('subscribers.export');
-    Route::get('/subscribers/{id}/edit', [SubscriberController::class, 'edit'])->name('subscribers.edit');
-    Route::put('/subscribers/{id}', [SubscriberController::class, 'update'])->name('subscribers.update');
-    Route::delete('/subscribers/{id}', [SubscriberController::class, 'destroy'])->name('subscribers.destroy');
 
     Route::get('/lists', [ListController::class, 'index'])->name('lists.index');
     Route::post('/lists', [ListController::class, 'store'])->name('lists.store');
@@ -246,23 +120,23 @@ Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(
 
     Route::prefix('profile')->name('profile.')->group(function (): void {
         Route::get('/', [ProfileController::class, 'index'])->name('index');
-        Route::post('/update', [ProfileController::class, 'update'])->name('update');
+        Route::patch('/update', [ProfileController::class, 'update'])->name('update');
         Route::post('/change-password', [ProfileController::class, 'changePassword'])->name('change-password');
         Route::get('/settings', [ProfileController::class, 'settings'])->name('settings');
+        Route::delete('/destroy', [ProfileController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('analytics')->name('analytics.')->group(function (): void {
         Route::get('/', [AnalyticsController::class, 'index'])->name('index');
         Route::get('/campaigns', [AnalyticsController::class, 'campaigns'])->name('campaigns');
-        Route::get('/subscribers', [AnalyticsController::class, 'subscribers'])->name('subscribers');
+        Route::get('/subscribers', [AnalyticsController::class, 'subscribers'])->name('analytics.subscribers');
         Route::get('/reports', [AnalyticsController::class, 'reports'])->name('reports');
         Route::get('/export', [AnalyticsController::class, 'export'])->name('export');
     });
 });
 
-// =================== ADMIN ROUTES ===================
+// =================== ADMIN ROUTES (including subscriber management) ===================
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
-    
     // Admin check helper
     $checkAdmin = function() {
         $user = auth()->user();
@@ -274,18 +148,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             'kanishghongade@gmail.com',
             'gamingeegamerz@gmail.com'
         ];
-        
         if (in_array($user->email, $adminEmails) || ($user->is_admin ?? false)) {
             return true;
         }
-        
         abort(403, 'Admin access required.');
     };
     
     // Dashboard
     Route::get('/dashboard', function() use ($checkAdmin) {
         $checkAdmin();
-        
         try {
             $totalUsers = DB::table('users')->count();
             $activeLicenses = DB::table('licenses')->where('status', 'active')->count();
@@ -302,11 +173,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $users = DB::table('users')
                 ->leftJoin('user_trust', 'users.id', '=', 'user_trust.user_id')
                 ->leftJoin('licenses', 'users.id', '=', 'licenses.user_id')
-                ->select('users.id', 'users.name', 'users.email', 'users.is_admin', 'users.created_at', 
-                        'user_trust.stage', 'user_trust.trust_score', 'user_trust.is_frozen', 'licenses.status as license_status')
-                ->orderByDesc('users.id')
-                ->limit(15)
-                ->get();
+                ->select('users.id', 'users.name', 'users.email', 'users.is_admin', 'users.created_at', 'user_trust.stage', 'user_trust.trust_score', 'user_trust.is_frozen', 'licenses.status as license_status')
+                ->orderByDesc('users.id')->limit(15)->get();
             $recentActivity = collect([
                 (object)['type' => 'user', 'description' => 'New user registered', 'time' => 'Just now'],
                 (object)['type' => 'license', 'description' => 'License activated', 'time' => '5 mins ago'],
@@ -320,57 +188,37 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $users = collect();
             $recentActivity = collect();
         }
-        
-        return view('admin.dashboard', compact('totalUsers', 'activeLicenses', 'emailsToday', 'totalEmailsSent', 
-                    'frozenUsers', 'usersToday', 'licensesToday', 'activeLicensesPercentage', 'totalRevenue', 
-                    'revenueToday', 'avgTrustScore', 'trustStats', 'users', 'recentActivity'));
+        return view('admin.dashboard', compact('totalUsers', 'activeLicenses', 'emailsToday', 'totalEmailsSent', 'frozenUsers', 'usersToday', 'licensesToday', 'activeLicensesPercentage', 'totalRevenue', 'revenueToday', 'avgTrustScore', 'trustStats', 'users', 'recentActivity'));
     })->name('dashboard');
     
-    // Test Routes
     Route::get('/test', function() {
-        return response()->json([
-            'success' => true, 
-            'message' => 'Admin route working', 
-            'user' => auth()->user()->email,
-            'is_admin' => auth()->user()->is_admin ?? 'not_set'
-        ]);
+        return response()->json(['success' => true, 'message' => 'Admin route working', 'user' => auth()->user()->email, 'is_admin' => auth()->user()->is_admin ?? 'not_set']);
     })->name('test');
     
     Route::post('/test-csrf', function() {
         return response()->json(['success' => true, 'message' => 'CSRF valid', 'user' => auth()->user()->email]);
     })->name('test.csrf');
     
-    // Make Admin
     Route::get('/make-admin', function() {
-        try {
-            DB::statement("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT 0");
-        } catch (\Exception $e) {}
-        
+        try { DB::statement("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT 0"); } catch (\Exception $e) {}
         DB::table('users')->where('id', auth()->id())->update(['is_admin' => 1]);
         return response()->json(['success' => true, 'message' => 'Admin status granted', 'email' => auth()->user()->email]);
     })->name('make.admin');
     
-    // Users Management
     Route::get('/users', function() use ($checkAdmin) {
         $checkAdmin();
         try {
-            $users = DB::table('users')->select('id', 'name', 'email', 'is_admin', 'created_at')
-                    ->orderByDesc('id')->paginate(20);
+            $users = DB::table('users')->select('id', 'name', 'email', 'is_admin', 'created_at')->orderByDesc('id')->paginate(20);
         } catch (\Exception $e) {
             $users = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => request()->url()]);
         }
         return view('admin.users.index', compact('users'));
     })->name('users.index');
     
-    // Licenses Management
     Route::get('/licenses', function() use ($checkAdmin) {
         $checkAdmin();
         try {
-            $licenses = DB::table('licenses')
-                ->leftJoin('users', 'licenses.user_id', '=', 'users.id')
-                ->select('licenses.*', 'users.name as user_name', 'users.email as user_email')
-                ->orderByDesc('licenses.created_at')
-                ->paginate(20);
+            $licenses = DB::table('licenses')->leftJoin('users', 'licenses.user_id', '=', 'users.id')->select('licenses.*', 'users.name as user_name', 'users.email as user_email')->orderByDesc('licenses.created_at')->paginate(20);
             $totalLicenses = DB::table('licenses')->count();
             $activeLicenses = DB::table('licenses')->where('is_active', true)->count();
             $totalRevenue = DB::table('licenses')->sum('price') ?? 0;
@@ -383,13 +231,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     
     Route::post('/licenses/generate', function() use ($checkAdmin) {
         $checkAdmin();
-        $licenseKey = 'INFIMAL-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) 
-                    . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4)));
-        DB::table('licenses')->insert([
-            'license_key' => $licenseKey, 'plan_type' => 'Premium', 'duration_days' => 30, 
-            'is_active' => true, 'price' => 299.00, 'expires_at' => now()->addDays(30), 
-            'created_at' => now(), 'updated_at' => now()
-        ]);
+        $licenseKey = 'INFIMAL-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4)));
+        DB::table('licenses')->insert(['license_key' => $licenseKey, 'plan_type' => 'Premium', 'duration_days' => 30, 'is_active' => true, 'price' => 299.00, 'expires_at' => now()->addDays(30), 'created_at' => now(), 'updated_at' => now()]);
         return response()->json(['success' => true, 'license_key' => $licenseKey]);
     })->name('licenses.generate');
     
@@ -398,13 +241,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         $count = request('count', 10);
         $days = request('days', 30);
         for ($i = 0; $i < $count; $i++) {
-            $licenseKey = 'INFIMAL-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) 
-                        . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4)));
-            DB::table('licenses')->insert([
-                'license_key' => $licenseKey, 'plan_type' => 'Premium', 'duration_days' => $days, 
-                'is_active' => true, 'price' => 299.00, 'expires_at' => now()->addDays($days), 
-                'created_at' => now(), 'updated_at' => now()
-            ]);
+            $licenseKey = 'INFIMAL-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . strtoupper(bin2hex(random_bytes(4)));
+            DB::table('licenses')->insert(['license_key' => $licenseKey, 'plan_type' => 'Premium', 'duration_days' => $days, 'is_active' => true, 'price' => 299.00, 'expires_at' => now()->addDays($days), 'created_at' => now(), 'updated_at' => now()]);
         }
         return response()->json(['success' => true, 'message' => "$count licenses generated"]);
     })->name('licenses.bulk-generate');
@@ -419,8 +257,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
                 $file = fopen('php://output', 'w');
                 fputcsv($file, ['License Key', 'Plan', 'Price', 'Status', 'Expires', 'Created']);
                 foreach ($licenses as $license) {
-                    fputcsv($file, [$license->license_key, $license->plan_type, '$' . $license->price, 
-                                    $license->is_active ? 'Active' : 'Inactive', $license->expires_at, $license->created_at]);
+                    fputcsv($file, [$license->license_key, $license->plan_type, '$' . $license->price, $license->is_active ? 'Active' : 'Inactive', $license->expires_at, $license->created_at]);
                 }
                 fclose($file);
             };
@@ -449,13 +286,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $stageDistribution = collect(['stage1' => $stage1Count, 'stage2' => $stage2Count, 'stage3' => $stage3Count, 'stage4' => $stage4Count, 'stage5' => $stage5Count]);
             $monitoredUsers = DB::table('user_trust')->where('stage', '>=', 3)->count();
             $alertsToday = DB::table('user_trust')->where('trust_score', '<', 50)->whereDate('updated_at', today())->count();
-            $users = DB::table('users')
-                ->leftJoin('user_trust', 'users.id', '=', 'user_trust.user_id')
-                ->select('users.id', 'users.name', 'users.email', 'users.created_at', 'user_trust.user_id', 
-                        'user_trust.trust_score', 'user_trust.stage', 'user_trust.emails_last_hour', 
-                        'user_trust.last_activity_at', 'user_trust.is_frozen', 'user_trust.frozen_at')
-                ->orderByDesc('user_trust.trust_score')
-                ->paginate(20);
+            $users = DB::table('users')->leftJoin('user_trust', 'users.id', '=', 'user_trust.user_id')->select('users.id', 'users.name', 'users.email', 'users.created_at', 'user_trust.user_id', 'user_trust.trust_score', 'user_trust.stage', 'user_trust.emails_last_hour', 'user_trust.last_activity_at', 'user_trust.is_frozen', 'user_trust.frozen_at')->orderByDesc('user_trust.trust_score')->paginate(20);
         } catch (\Exception $e) {
             $totalUsers = $highTrustUsers = $mediumTrustUsers = $lowTrustUsers = $frozenUsers = 0;
             $avgTrustScore = 85;
@@ -465,9 +296,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $monitoredUsers = $alertsToday = 0;
             $users = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => request()->url()]);
         }
-        return view('admin.trust', compact('totalUsers', 'highTrustUsers', 'mediumTrustUsers', 'lowTrustUsers', 
-                    'frozenUsers', 'avgTrustScore', 'stage1Count', 'stage2Count', 'stage3Count', 'stage4Count', 
-                    'stage5Count', 'newFrozenToday', 'stageDistribution', 'monitoredUsers', 'alertsToday', 'users'));
+        return view('admin.trust', compact('totalUsers', 'highTrustUsers', 'mediumTrustUsers', 'lowTrustUsers', 'frozenUsers', 'avgTrustScore', 'stage1Count', 'stage2Count', 'stage3Count', 'stage4Count', 'stage5Count', 'newFrozenToday', 'stageDistribution', 'monitoredUsers', 'alertsToday', 'users'));
     })->name('trust.index');
     
     Route::post('/trust/{userId}/adjust', function($userId) use ($checkAdmin) {
@@ -504,16 +333,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/trust/export', function() use ($checkAdmin) {
         $checkAdmin();
         try {
-            $users = DB::table('users')->leftJoin('user_trust', 'users.id', '=', 'user_trust.user_id')
-                    ->select('users.*', 'user_trust.*')->get();
+            $users = DB::table('users')->leftJoin('user_trust', 'users.id', '=', 'user_trust.user_id')->select('users.*', 'user_trust.*')->get();
             $filename = 'trust_export_' . date('Y-m-d') . '.csv';
             $headers = ['Content-Type' => 'text/csv', 'Content-Disposition' => 'attachment; filename="' . $filename . '"'];
             $callback = function() use ($users) {
                 $file = fopen('php://output', 'w');
                 fputcsv($file, ['User ID', 'Name', 'Email', 'Trust Score', 'Stage', 'Status', 'Frozen At']);
                 foreach ($users as $user) {
-                    fputcsv($file, [$user->id, $user->name, $user->email, $user->trust_score ?? 100, 
-                                    $user->stage ?? 1, $user->is_frozen ? 'Frozen' : 'Active', $user->frozen_at ?? 'N/A']);
+                    fputcsv($file, [$user->id, $user->name, $user->email, $user->trust_score ?? 100, $user->stage ?? 1, $user->is_frozen ? 'Frozen' : 'Active', $user->frozen_at ?? 'N/A']);
                 }
                 fclose($file);
             };
@@ -543,12 +370,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $avgOpenRate = round(DB::table('email_logs')->where('opened', 1)->avg('open_rate') ?? 0, 1);
             $avgClickRate = round(DB::table('email_logs')->where('clicked', 1)->avg('click_rate') ?? 0, 1);
             $avgResponseTime = round(DB::table('email_logs')->whereNotNull('response_time')->avg('response_time') ?? 0, 2);
-            $emails = DB::table('email_logs')
-                ->leftJoin('users', 'email_logs.user_id', '=', 'users.id')
-                ->leftJoin('campaigns', 'email_logs.campaign_id', '=', 'campaigns.id')
-                ->select('email_logs.*', 'users.email as user_email', 'users.name as user_name', 'campaigns.name as campaign_name')
-                ->orderByDesc('email_logs.created_at')
-                ->paginate(20);
+            $emails = DB::table('email_logs')->leftJoin('users', 'email_logs.user_id', '=', 'users.id')->leftJoin('campaigns', 'email_logs.campaign_id', '=', 'campaigns.id')->select('email_logs.*', 'users.email as user_email', 'users.name as user_name', 'campaigns.name as campaign_name')->orderByDesc('email_logs.created_at')->paginate(20);
         } catch (\Exception $e) {
             $totalEmails = $emailsToday = 0;
             $deliveredCount = $failedCount = $pendingCount = $bouncedCount = $sentCount = 0;
@@ -558,9 +380,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $avgResponseTime = 0;
             $emails = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => request()->url()]);
         }
-        return view('admin.emails', compact('totalEmails', 'emailsToday', 'deliveredCount', 'failedCount', 
-                    'pendingCount', 'bouncedCount', 'sentCount', 'successRate', 'opensToday', 'clicksToday', 
-                    'failuresToday', 'avgOpenRate', 'avgClickRate', 'avgResponseTime', 'emails'));
+        return view('admin.emails', compact('totalEmails', 'emailsToday', 'deliveredCount', 'failedCount', 'pendingCount', 'bouncedCount', 'sentCount', 'successRate', 'opensToday', 'clicksToday', 'failuresToday', 'avgOpenRate', 'avgClickRate', 'avgResponseTime', 'emails'));
     })->name('emails.index');
     
     Route::get('/emails/stats', function() use ($checkAdmin) {
@@ -582,15 +402,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $avgOpenRate = round(DB::table('email_logs')->where('opened', 1)->avg('open_rate') ?? 0, 1);
             $avgClickRate = round(DB::table('email_logs')->where('clicked', 1)->avg('click_rate') ?? 0, 1);
             $avgResponseTime = round(DB::table('email_logs')->whereNotNull('response_time')->avg('response_time') ?? 0, 2);
-            
-            return response()->json([
-                'success' => true, 'totalEmails' => $totalEmails, 'emailsToday' => $emailsToday,
-                'deliveredCount' => $deliveredCount, 'sentCount' => $sentCount, 'pendingCount' => $pendingCount,
-                'failedCount' => $failedCount, 'bouncedCount' => $bouncedCount, 'successRate' => $successRate,
-                'opensToday' => $opensToday, 'clicksToday' => $clicksToday, 'failuresToday' => $failuresToday,
-                'avgOpenRate' => $avgOpenRate, 'avgClickRate' => $avgClickRate, 'avgResponseTime' => $avgResponseTime,
-                'timestamp' => now()->toISOString()
-            ]);
+            return response()->json(['success' => true, 'totalEmails' => $totalEmails, 'emailsToday' => $emailsToday, 'deliveredCount' => $deliveredCount, 'sentCount' => $sentCount, 'pendingCount' => $pendingCount, 'failedCount' => $failedCount, 'bouncedCount' => $bouncedCount, 'successRate' => $successRate, 'opensToday' => $opensToday, 'clicksToday' => $clicksToday, 'failuresToday' => $failuresToday, 'avgOpenRate' => $avgOpenRate, 'avgClickRate' => $avgClickRate, 'avgResponseTime' => $avgResponseTime, 'timestamp' => now()->toISOString()]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error fetching stats', 'error' => $e->getMessage()], 500);
         }
@@ -639,26 +451,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             if ($totalSMTPs > 0 && ($riskySMTPs / $totalSMTPs) > 0.3) $systemHealth -= 20;
             if ($totalSMTPs > 0 && ($disabledSMTPs / $totalSMTPs) > 0.5) $systemHealth -= 15;
             $systemHealth = max(30, round($systemHealth));
-            $healthStats = [
-                'excellent' => $smtpServers->where('reputation_score', '>=', 80)->where('is_active', true)->count(),
-                'good' => $smtpServers->whereBetween('reputation_score', [60, 79])->where('is_active', true)->count(),
-                'risky' => $smtpServers->whereBetween('reputation_score', [40, 59])->where('is_active', true)->count(),
-                'critical' => $smtpServers->where('reputation_score', '<', 40)->where('is_active', true)->count(),
-                'disabled' => $disabledSMTPs
-            ];
-            $providerStats = [
-                'gmail' => $smtpServers->where('provider', 'gmail')->count(),
-                'outlook' => $smtpServers->where('provider', 'outlook')->count(),
-                'yahoo' => $smtpServers->where('provider', 'yahoo')->count(),
-                'custom' => $smtpServers->where('provider', 'custom')->count()
-            ];
-            $failureStats = [
-                'soft_bounces' => $smtpServers->sum('soft_bounces_24h') ?? 0,
-                'hard_bounces' => $smtpServers->sum('hard_bounces_24h') ?? 0,
-                'spam_complaints' => $smtpServers->sum('spam_complaints_24h') ?? 0,
-                'auth_errors' => $smtpServers->sum('auth_errors_24h') ?? 0,
-                'temp_failures' => $smtpServers->sum('temp_failures_24h') ?? 0
-            ];
+            $healthStats = ['excellent' => $smtpServers->where('reputation_score', '>=', 80)->where('is_active', true)->count(), 'good' => $smtpServers->whereBetween('reputation_score', [60, 79])->where('is_active', true)->count(), 'risky' => $smtpServers->whereBetween('reputation_score', [40, 59])->where('is_active', true)->count(), 'critical' => $smtpServers->where('reputation_score', '<', 40)->where('is_active', true)->count(), 'disabled' => $disabledSMTPs];
+            $providerStats = ['gmail' => $smtpServers->where('provider', 'gmail')->count(), 'outlook' => $smtpServers->where('provider', 'outlook')->count(), 'yahoo' => $smtpServers->where('provider', 'yahoo')->count(), 'custom' => $smtpServers->where('provider', 'custom')->count()];
+            $failureStats = ['soft_bounces' => $smtpServers->sum('soft_bounces_24h') ?? 0, 'hard_bounces' => $smtpServers->sum('hard_bounces_24h') ?? 0, 'spam_complaints' => $smtpServers->sum('spam_complaints_24h') ?? 0, 'auth_errors' => $smtpServers->sum('auth_errors_24h') ?? 0, 'temp_failures' => $smtpServers->sum('temp_failures_24h') ?? 0];
             $totalEmailsToday = $emailsToday;
             $bounceRate = $emailsToday > 0 ? round((($failureStats['soft_bounces'] + $failureStats['hard_bounces']) / $emailsToday) * 100, 1) : 0;
             $spamRate = $emailsToday > 0 ? round(($failureStats['spam_complaints'] / $emailsToday) * 100, 1) : 0;
@@ -668,24 +463,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
             $currentPage = request('page', 1);
             $smtps = new \Illuminate\Pagination\LengthAwarePaginator($smtpServers->forPage($currentPage, $perPage), $totalSMTPs, $perPage, $currentPage, ['path' => request()->url()]);
         } catch (\Exception $e) {
-            $totalSMTPs = 1;
-            $activeSMTPs = $disabledSMTPs = $riskySMTPs = 0;
-            $avgReputation = $avgRotationScore = $systemHealth = 100;
-            $emailsToday = $emailsPerHour = $avgEmailsPerSMTP = $totalEmailsToday = 0;
-            $healthStats = ['excellent' => 0, 'good' => 0, 'risky' => 0, 'critical' => 0, 'disabled' => 0];
-            $providerStats = ['gmail' => 0, 'outlook' => 0, 'yahoo' => 0, 'custom' => 0];
-            $failureStats = ['soft_bounces' => 0, 'hard_bounces' => 0, 'spam_complaints' => 0, 'auth_errors' => 0, 'temp_failures' => 0];
-            $bounceRate = $spamRate = $systemStability = 0;
-            $rotationSuccessRate = 95;
-            $smtps = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => request()->url()]);
+            $totalSMTPs = 1; $activeSMTPs = $disabledSMTPs = $riskySMTPs = 0; $avgReputation = $avgRotationScore = $systemHealth = 100; $emailsToday = $emailsPerHour = $avgEmailsPerSMTP = $totalEmailsToday = 0; $healthStats = ['excellent' => 0, 'good' => 0, 'risky' => 0, 'critical' => 0, 'disabled' => 0]; $providerStats = ['gmail' => 0, 'outlook' => 0, 'yahoo' => 0, 'custom' => 0]; $failureStats = ['soft_bounces' => 0, 'hard_bounces' => 0, 'spam_complaints' => 0, 'auth_errors' => 0, 'temp_failures' => 0]; $bounceRate = $spamRate = $systemStability = 0; $rotationSuccessRate = 95; $smtps = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20, 1, ['path' => request()->url()]);
         }
-        return view('admin.smtp', compact('totalSMTPs', 'activeSMTPs', 'disabledSMTPs', 'riskySMTPs', 
-                    'avgReputation', 'avgRotationScore', 'emailsToday', 'emailsPerHour', 'avgEmailsPerSMTP', 
-                    'systemHealth', 'healthStats', 'providerStats', 'failureStats', 'totalEmailsToday', 
-                    'bounceRate', 'spamRate', 'systemStability', 'rotationSuccessRate', 'smtps'));
+        return view('admin.smtp', compact('totalSMTPs', 'activeSMTPs', 'disabledSMTPs', 'riskySMTPs', 'avgReputation', 'avgRotationScore', 'emailsToday', 'emailsPerHour', 'avgEmailsPerSMTP', 'systemHealth', 'healthStats', 'providerStats', 'failureStats', 'totalEmailsToday', 'bounceRate', 'spamRate', 'systemStability', 'rotationSuccessRate', 'smtps'));
     })->name('smtp.index');
     
-    // Revenue Management
+    // Revenue Management (ensure RevenueController exists)
     Route::get('/revenue', [RevenueController::class, 'index'])->name('revenue.index');
     Route::get('/revenue/stats', [RevenueController::class, 'stats'])->name('revenue.stats');
     Route::get('/revenue/transaction/{id}', [RevenueController::class, 'getTransaction'])->name('revenue.transaction');
@@ -700,12 +483,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/api/stats', function() use ($checkAdmin) {
         $checkAdmin();
         try {
-            return response()->json([
-                'totalUsers' => DB::table('users')->count(),
-                'activeLicenses' => DB::table('licenses')->where('status', 'active')->count(),
-                'emailsToday' => DB::table('email_logs')->whereDate('created_at', today())->count(),
-                'frozenUsers' => DB::table('user_trust')->where('is_frozen', true)->count()
-            ]);
+            return response()->json(['totalUsers' => DB::table('users')->count(), 'activeLicenses' => DB::table('licenses')->where('status', 'active')->count(), 'emailsToday' => DB::table('email_logs')->whereDate('created_at', today())->count(), 'frozenUsers' => DB::table('user_trust')->where('is_frozen', true)->count()]);
         } catch (\Exception $e) {
             return response()->json(['totalUsers' => 0, 'activeLicenses' => 0, 'emailsToday' => 0, 'frozenUsers' => 0]);
         }
@@ -714,17 +492,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Admin Analytics
     Route::get('/analytics/users', [AdminAnalyticsController::class, 'users'])->name('analytics.users');
     Route::get('/analytics/users/{userId}', [AdminAnalyticsController::class, 'userDetail'])->name('analytics.user-detail');
+    
+    // ========== SUBSCRIBER MANAGEMENT (Admin Only) ==========
+    // These routes are inside admin group, so only admins can access (via $checkAdmin closure)
+    Route::get('/subscribers', [SubscriberController::class, 'index'])->name('subscribers.index');
+    Route::post('/subscribers', [SubscriberController::class, 'store'])->name('subscribers.store');
+    Route::post('/subscribers/import', [SubscriberController::class, 'import'])->name('subscribers.import');
+    Route::get('/subscribers/export', [SubscriberController::class, 'export'])->name('subscribers.export');
+    Route::get('/subscribers/{id}/edit', [SubscriberController::class, 'edit'])->name('subscribers.edit');
+    Route::put('/subscribers/{id}', [SubscriberController::class, 'update'])->name('subscribers.update');
+    Route::delete('/subscribers/{id}', [SubscriberController::class, 'destroy'])->name('subscribers.destroy');
 });
 
 // =================== HEALTH CHECK ===================
 Route::get('/health', function () {
-    return response()->json([
-        'status' => 'OK', 
-        'timestamp' => now(), 
-        'php_version' => PHP_VERSION, 
-        'laravel_version' => app()->version(), 
-        'environment' => app()->environment()
-    ]);
+    return response()->json(['status' => 'OK', 'timestamp' => now(), 'php_version' => PHP_VERSION, 'laravel_version' => app()->version(), 'environment' => app()->environment()]);
 });
 
 // =================== FALLBACK ===================
