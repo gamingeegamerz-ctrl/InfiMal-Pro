@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head>    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+<!DOCTYPE html><html><head>    <meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
 <title>Help Center</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-50 min-h-screen flex items-center justify-center"><div class="text-center"><div class="flex justify-center mb-6">
     <a href="{{ url('/') }}">
