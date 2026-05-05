@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Cross-device text rendering safeguards without changing layout design */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Prevent long tokens from overflowing and breaking layouts */
+body {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Keep media and common containers inside viewport bounds */
+img,
+video,
+canvas,
+svg,
+iframe,
+table,
+pre,
+code,
+div,
+section,
+main,
+article,
+aside,
+header,
+footer,
+nav {
+  max-width: 100%;
+}

@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     <title>Error - Subscribers</title>
     <style>
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         body { font-family: Arial; padding: 20px; background: #f8d7da; color: #721c24; }
+        body { overflow-wrap: break-word; word-break: break-word; }
         .container { max-width: 800px; margin: 50px auto; background: white; padding: 30px; border-radius: 5px; }
         h1 { color: #721c24; }
         .error { background: #f8d7da; padding: 15px; border-radius: 5px; }
