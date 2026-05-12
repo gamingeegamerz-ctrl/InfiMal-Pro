@@ -9,99 +9,123 @@ use App\Services\LimitService;
 use App\Services\EmailDispatcher;
 use App\Models\License;
 use App\Models\SMTPAccount;
+use App\Services\EmailRateLimiter;
+use App\Services\SesService;
+use App\Services\SpamKeywordChecker;
 
 class EmailSendController extends Controller
 {
-    protected LimitService $limitService;
-
-    public function __construct(LimitService $limitService)
-    {
-        $this->limitService = $limitService;
+    public function __construct(
+        protected LimitService $limitService,
+        protected EmailRateLimiter $emailRateLimiter,
+        protected SpamKeywordChecker $spamKeywordChecker,
+        protected SesService $sesService,
+    ) {
     }
 
     /**
-     * Send emails (API endpoint)
+     * Send emails (API endpoint). Supports Infimail SES payloads:
+     * - from: sender address
+     * - campaign_id: optional campaign ID
+     * - emails: [{to, subject, body|html_body}]
      */
     public function send(Request $request)
     {
         $user = Auth::user();
 
-        if (!$user) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Unauthorized'
-            ], 401);
+        if (! $user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        // License check
-        $license = License::where('user_id', $user->id)
-            ->where('status', 'active')
-            ->first();
-
-        if (!$license) {
+        if ($user->suspended) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'License inactive or blocked'
+                'message' => $user->suspension_reason ?: 'Your sending is suspended. Please contact support.',
             ], 403);
         }
 
-        // SMTP check
-        $smtp = SMTPAccount::where('user_id', $user->id)
-            ->where('is_active', true)
-            ->first();
-
-        if (!$smtp) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'SMTP access disabled'
-            ], 403);
-        }
-
-        // Validate input
         $validator = Validator::make($request->all(), [
+            'from' => 'required|email',
+            'campaign_id' => 'nullable|integer|exists:campaigns,id',
             'emails' => 'required|array|min:1',
             'emails.*.to' => 'required|email',
             'emails.*.subject' => 'required|string|max:255',
-            'emails.*.body' => 'required|string'
+            'emails.*.body' => 'required_without:emails.*.html_body|string',
+            'emails.*.html_body' => 'required_without:emails.*.body|string',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $validator->errors()->first()
-            ], 422);
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 422);
         }
 
         $emails = $request->input('emails');
-        $count  = count($emails);
+        $count = count($emails);
 
-        try {
-            // LIMIT + SPIKE CHECK
-            $this->limitService->canSend($user->id, $count);
+        foreach ($emails as $email) {
+            $htmlBody = $email['html_body'] ?? $email['body'];
+            if ($this->spamKeywordChecker->containsSuspiciousKeyword($email['subject'], $htmlBody)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to send: Content contains suspicious keywords.',
+                ], 422);
+            }
+        }
 
+        if (! $this->emailRateLimiter->canSendNow($user, $count)) {
             foreach ($emails as $email) {
-                EmailDispatcher::dispatch([
+                $this->emailRateLimiter->queueForLater([
                     'user_id' => $user->id,
+                    'from' => $request->input('from'),
                     'to' => $email['to'],
                     'subject' => $email['subject'],
-                    'body' => $email['body'],
+                    'html_body' => $email['html_body'] ?? $email['body'],
+                    'campaign_id' => $request->input('campaign_id'),
                 ]);
             }
 
-            $this->limitService->registerSend($user->id, $count);
+            return response()->json([
+                'status' => 'queued',
+                'message' => 'Your email is queued and will be sent shortly.',
+                'queued' => $count,
+            ], 202);
+        }
+
+        try {
+            foreach ($emails as $email) {
+                $this->sesService->sendEmail(
+                    $request->input('from'),
+                    $email['to'],
+                    $email['subject'],
+                    $email['html_body'] ?? $email['body'],
+                    $user->id,
+                    $request->integer('campaign_id') ?: null,
+                );
+            }
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Emails queued successfully',
-                'queued' => $count
+                'message' => 'Emails sent successfully',
+                'sent' => $count,
             ]);
+        } catch (\Throwable $e) {
+            report($e);
 
-        } catch (\Exception $e) {
+            foreach ($emails as $email) {
+                $this->emailRateLimiter->queueForLater([
+                    'user_id' => $user->id,
+                    'from' => $request->input('from'),
+                    'to' => $email['to'],
+                    'subject' => $email['subject'],
+                    'html_body' => $email['html_body'] ?? $email['body'],
+                    'campaign_id' => $request->input('campaign_id'),
+                ]);
+            }
 
             return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], 429);
+                'status' => 'queued',
+                'message' => 'Your email is queued and will be sent shortly.',
+                'queued' => $count,
+            ], 202);
         }
     }
 

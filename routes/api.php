@@ -7,6 +7,7 @@ use App\Http\Controllers\EmailSendController;
 use App\Http\Controllers\PostalWebhookController;
 use App\Http\Controllers\PaddleWebhookController;
 use App\Http\Controllers\SenderDomainController;
+use App\Http\Controllers\SesWebhookController;
 
 use App\Models\SMTPAccount;
 use App\Models\EmailLimit;
@@ -21,6 +22,10 @@ use App\Models\License;
 // Paddle webhook
 Route::post('/webhook/paddle', [PaddleWebhookController::class, 'handle'])
     ->name('paddle.webhook');
+
+// SES webhook (SNS -> SES events)
+Route::post('/ses-webhook', [SesWebhookController::class, 'handle'])
+    ->name('ses.webhook');
 
 // Postal webhook (IMPORTANT)
 Route::post('/webhooks/postal', [PostalWebhookController::class, 'handle'])

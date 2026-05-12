@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DomainVerificationController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\ListController;
 use App\Http\Controllers\MessageController;
@@ -116,6 +117,10 @@ Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(
     Route::prefix('domains')->name('domains.')->group(function (): void {
         Route::get('/', [SenderDomainController::class, 'index'])->name('index');
         Route::post('/', [SenderDomainController::class, 'store'])->name('store');
+        Route::get('/ses/verify', [DomainVerificationController::class, 'form'])->name('verify.form');
+        Route::post('/ses/verify', [DomainVerificationController::class, 'submit'])->name('verify.submit');
+        Route::get('/ses/dns', [DomainVerificationController::class, 'dns'])->name('dns');
+        Route::get('/ses/check', [DomainVerificationController::class, 'check'])->name('verify.check');
         Route::post('/{domain}/verify', [SenderDomainController::class, 'verify'])->name('verify');
         Route::delete('/{domain}', [SenderDomainController::class, 'destroy'])->name('destroy');
     });
@@ -142,8 +147,9 @@ Route::middleware(['auth', 'flow.state', 'paid.access', 'usage.limits'])->group(
     });
 
     Route::prefix('analytics')->name('analytics.')->group(function (): void {
-        Route::get('/', [AnalyticsController::class, 'index'])->name('index');
+        Route::get('/', [AnalyticsController::class, 'dashboard'])->name('index');
         Route::get('/campaigns', [AnalyticsController::class, 'campaigns'])->name('campaigns');
+        Route::get('/campaigns/{campaignId}', [AnalyticsController::class, 'campaignStats'])->name('campaign');
         Route::get('/subscribers', [AnalyticsController::class, 'subscribers'])->name('subscribers');
         Route::get('/reports', [AnalyticsController::class, 'reports'])->name('reports');
         Route::get('/export', [AnalyticsController::class, 'export'])->name('export');

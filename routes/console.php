@@ -43,3 +43,15 @@ Schedule::command('infimal:enforce-admin-smtp-protection')
 Schedule::command('infimal:auto-scale-workers')
     ->everyMinute()
     ->withoutOverlapping();
+
+Schedule::command('infimail:update-warmup-limits')
+    ->hourly()
+    ->withoutOverlapping();
+
+Schedule::command('infimail:update-warmup-limits --reset-today')
+    ->dailyAt('00:00')
+    ->withoutOverlapping();
+
+Schedule::command('infimail:monitor-reputation')
+    ->hourly()
+    ->withoutOverlapping();
