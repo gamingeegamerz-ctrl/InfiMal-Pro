@@ -49,6 +49,16 @@ class User extends Authenticatable
         'otp_locked_until',
         'otp_failed_attempts',
         'onboarding_step',
+        'daily_limit',
+        'today_sent',
+        'warmup_stage',
+        'suspended',
+        'suspension_reason',
+        'domain',
+        'domain_verified',
+        'verification_token',
+        'bounce_count',
+        'complaint_count',
     ];
 
     protected $hidden = [
@@ -74,6 +84,12 @@ class User extends Authenticatable
         'is_admin' => 'boolean',
         'google_password_set' => 'boolean',
         'otp_failed_attempts' => 'integer',
+        'daily_limit' => 'integer',
+        'today_sent' => 'integer',
+        'suspended' => 'boolean',
+        'domain_verified' => 'boolean',
+        'bounce_count' => 'integer',
+        'complaint_count' => 'integer',
     ];
 
     // =================== RELATIONSHIPS ===================
@@ -81,6 +97,31 @@ class User extends Authenticatable
     public function campaigns(): HasMany
     {
         return $this->hasMany(Campaign::class, 'user_id');
+    }
+
+    public function sentEmails(): HasMany
+    {
+        return $this->hasMany(SentEmail::class, 'user_id');
+    }
+
+    public function emailOpens(): HasMany
+    {
+        return $this->hasMany(EmailOpen::class, 'user_id');
+    }
+
+    public function emailClicks(): HasMany
+    {
+        return $this->hasMany(EmailClick::class, 'user_id');
+    }
+
+    public function bounces(): HasMany
+    {
+        return $this->hasMany(Bounce::class, 'user_id');
+    }
+
+    public function complaints(): HasMany
+    {
+        return $this->hasMany(Complaint::class, 'user_id');
     }
 
     public function subscriberLists(): HasMany
