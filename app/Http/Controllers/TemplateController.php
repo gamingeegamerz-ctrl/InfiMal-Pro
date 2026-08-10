@@ -2,151 +2,139 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Template;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class TemplateController extends Controller
 {
-    /**
-     * Display a listing of the templates.
-     */
     public function index()
     {
-        $templates = Template::latest()->paginate(10);
+        $templates = Template::where('user_id', Auth::id())
+            ->latest()
+            ->paginate(10);
+
         return view('templates.index', compact('templates'));
     }
 
-    /**
-     * Show the form for creating a new template.
-     */
     public function create()
     {
         return view('templates.create');
     }
 
-    /**
-     * Store a newly created template in storage.
-     */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'subject' => 'required|string|max:255',
             'content' => 'required|string',
             'type' => 'required|in:email,campaign,notification',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
         ]);
 
         try {
             Template::create([
-                'name' => $request->name,
-                'subject' => $request->subject,
-                'content' => $request->content,
-                'type' => $request->type,
-                'is_active' => $request->is_active ?? true,
-                'slug' => Str::slug($request->name) . '-' . Str::random(6)
+                'user_id' => Auth::id(),
+                'name' => $validated['name'],
+                'subject' => $validated['subject'],
+                'content' => $validated['content'],
+                'type' => $validated['type'],
+                'is_active' => $validated['is_active'] ?? true,
+                'slug' => Str::slug($validated['name']) . '-' . Str::random(6),
             ]);
 
             return redirect()->route('templates.index')
                 ->with('success', 'Template created successfully!');
-                
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Error creating template: ' . $e->getMessage())
+                ->with('error', 'Error creating template.')
                 ->withInput();
         }
     }
 
-    /**
-     * Show the form for editing the specified template.
-     */
     public function edit($id)
     {
-        $template = Template::findOrFail($id);
+        $template = Template::where('user_id', Auth::id())->findOrFail($id);
+
         return view('templates.edit', compact('template'));
     }
 
-    /**
-     * Update the specified template in storage.
-     */
     public function update(Request $request, $id)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'subject' => 'required|string|max:255',
             'content' => 'required|string',
             'type' => 'required|in:email,campaign,notification',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
         ]);
 
         try {
-            $template = Template::findOrFail($id);
-            
+            $template = Template::where('user_id', Auth::id())->findOrFail($id);
+
             $template->update([
-                'name' => $request->name,
-                'subject' => $request->subject,
-                'content' => $request->content,
-                'type' => $request->type,
-                'is_active' => $request->is_active ?? $template->is_active
+                'name' => $validated['name'],
+                'subject' => $validated['subject'],
+                'content' => $validated['content'],
+                'type' => $validated['type'],
+                'is_active' => $validated['is_active'] ?? $template->is_active,
             ]);
 
             return redirect()->route('templates.index')
                 ->with('success', 'Template updated successfully!');
-                
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Error updating template: ' . $e->getMessage())
+                ->with('error', 'Error updating template.')
                 ->withInput();
         }
     }
 
-    /**
-     * Remove the specified template from storage.
-     */
     public function destroy($id)
     {
         try {
-            $template = Template::findOrFail($id);
+            $template = Template::where('user_id', Auth::id())->findOrFail($id);
             $template->delete();
 
             return redirect()->route('templates.index')
                 ->with('success', 'Template deleted successfully!');
-                
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Error deleting template: ' . $e->getMessage());
+                ->with('error', 'Error deleting template.');
         }
     }
 
-    /**
-     * Duplicate the specified template.
-     */
     public function duplicate($id)
     {
         try {
-            $template = Template::findOrFail($id);
-            
+            $template = Template::where('user_id', Auth::id())->findOrFail($id);
+
             $newTemplate = $template->replicate();
+            $newTemplate->user_id = Auth::id();
             $newTemplate->name = $template->name . ' (Copy)';
             $newTemplate->slug = Str::slug($newTemplate->name) . '-' . Str::random(6);
             $newTemplate->save();
 
             return redirect()->route('templates.index')
                 ->with('success', 'Template duplicated successfully!');
-                
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            report($e);
+
             return redirect()->back()
-                ->with('error', 'Error duplicating template: ' . $e->getMessage());
+                ->with('error', 'Error duplicating template.');
         }
     }
 
-    /**
-     * Preview the specified template.
-     */
     public function preview($id)
     {
-        $template = Template::findOrFail($id);
+        $template = Template::where('user_id', Auth::id())->findOrFail($id);
+
         return view('templates.preview', compact('template'));
     }
 }
